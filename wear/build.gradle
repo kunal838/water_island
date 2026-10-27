@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.kunal.waterisland.wear'
+    compileSdk 36
+
+    defaultConfig {
+        // Same application id as the phone app: the Wear Data Layer only connects apps that share it
+        // (and the same signing key, which both debug builds get from this PC's debug keystore).
+        applicationId 'com.kunal.waterisland'
+        minSdk 30
+        targetSdk 34
+        versionCode 2
+        versionName '1.1'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+
+    // Tile (quick add) and watch-face complication.
+    implementation 'androidx.wear.tiles:tiles:1.4.1'
+    implementation 'androidx.wear.protolayout:protolayout:1.2.1'
+    implementation 'androidx.wear.watchface:watchface-complications-data-source:1.2.1'
+    implementation 'com.google.guava:guava:33.0.0-android'
+}

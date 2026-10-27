@@ -1,0 +1,22 @@
+# Build output and caches
+build/
+.gradle/
+.cxx/
+*.apk
+*.aab
+apk/
+
+# Machine-specific files. Android Studio creates local.properties for you.
+local.properties
+.idea/
+*.iml
+captures/
+
+# Never commit signing keys or passwords
+*.jks
+*.keystore
+keystore.properties
+
+# OS junk
+.DS_Store
+Thumbs.db
