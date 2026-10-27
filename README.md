@@ -297,23 +297,6 @@ Install the newer APK over the old one and their data is kept. This only works i
 3. Keep the key file and its passwords safe and **never** put them in git. If you lose the key you cannot update the app for people who installed it.
 4. To publish on Google Play you need a Play Console account, and the phone and watch apps are uploaded under the same package name (`com.kunal.waterisland`) so they install together.
 
----
-
-## For the project owner: putting this on GitHub
-
-```bash
-git init
-git add .
-git commit -m "Water Island phone and Galaxy Watch apps"
-git branch -M main
-git remote add origin <your-repository-address>
-git push -u origin main
-```
-
-The included `.gitignore` already keeps build folders, `local.properties` (your own SDK path) and signing keys out of the repository. Gradle's wrapper files (`gradlew`, `gradlew.bat` and the `gradle/` folder) **are** committed on purpose, so anyone can build with one command.
-
-Before you share it, add a **LICENSE** file so people know how they may use the code.
-
 ## Project layout
 
 ```
