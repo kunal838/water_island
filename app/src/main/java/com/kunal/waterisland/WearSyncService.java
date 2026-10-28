@@ -15,6 +15,14 @@ public class WearSyncService extends WearableListenerService {
             if (event.getType() != DataEvent.TYPE_CHANGED) continue;
             DataItem item = event.getDataItem();
             String path = item.getUri().getPath();
+            if (path != null && path.startsWith(WearSync.PATH_STYLE)) {
+                // The watch picked a look; the newest choice wins, whichever device made it.
+                com.google.android.gms.wearable.DataMap m = DataMapItem.fromDataItem(item).getDataMap();
+                long at = m.getLong("at");
+                if (at > Store.watchStyleAt(this)) Store.setWatchStyle(this, m.getInt("style", -1), at);
+                Wearable.getDataClient(this).deleteDataItems(item.getUri());
+                continue;
+            }
             if (path == null || !path.startsWith(WearSync.PATH_ADD)) continue;
 
             String id = path.substring(WearSync.PATH_ADD.length());

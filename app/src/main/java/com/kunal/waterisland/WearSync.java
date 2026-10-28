@@ -15,6 +15,7 @@ import java.util.ArrayList;
 final class WearSync {
     static final String PATH_STATE = "/state";
     static final String PATH_ADD = "/add/";
+    static final String PATH_STYLE = "/style/";
 
     private WearSync() {}
 
@@ -46,6 +47,8 @@ final class WearSync {
             ArrayList<Integer> week = new ArrayList<>();
             for (int glasses : Store.weekGlasses(c)) week.add(glasses);
             m.putIntegerArrayList("week", week);
+            m.putInt("style", Store.watchStyle(c));
+            m.putLong("styleAt", Store.watchStyleAt(c));
             m.putStringArrayList("applied", new ArrayList<>(Store.wearApplied(c)));
             m.putLong("sentAt", System.currentTimeMillis());   // makes every push a change
             Wearable.getDataClient(c).putDataItem(req.asPutDataRequest().setUrgent());

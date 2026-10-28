@@ -206,7 +206,7 @@ adb -s 192.168.1.25:40567 install -r wear/build/outputs/apk/debug/wear-debug.apk
 
 1. Open **Water Island** on the watch (it is in the app list; the icon is a white drop outline).
 2. Tap **Allow** when it asks about notifications.
-3. Swipe sideways between three pages: **Today**, **This week**, **Change today**.
+3. Swipe sideways between four pages: **Today**, **This week**, **Change today**, **Style**.
 
 ### 5f. Optional: a tile and a watch-face complication
 
@@ -227,7 +227,7 @@ Everything is counted in **glasses**. **3 glasses = 1 litre**, so one glass is 1
 - Tap **+ 1 glass** after you drink, or **âˆ’ 1 glass** to fix a mistake.
 - The big number is today's glasses, with the litres and your goal underneath.
 - The cards show your week as bars and a trend line, with your average and best day.
-- **Settings** has the reminder interval, sound, daily goal (in glasses), **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
+- **Settings** has the reminder interval, sound, **Watch style**, daily goal (in glasses), **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
 - **Export data** (Excel, JSON or CSV) lists glasses and litres per day, today's log, and your settings.
 
 **Watch**

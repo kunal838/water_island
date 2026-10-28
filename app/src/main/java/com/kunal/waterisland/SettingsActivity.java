@@ -40,6 +40,7 @@ public class SettingsActivity extends Activity {
     private TextView soundValue;
     private TextView watchValue;
     private TextView styleValue;
+    private TextView watchStyleValue;
     private final List<Runnable> permRefreshers = new ArrayList<>();
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -153,6 +154,16 @@ public class SettingsActivity extends Activity {
             refresh();
         });
 
+        section("Watch");
+        watchStyleValue = row("Watch style", () -> new AlertDialog.Builder(this)
+                .setTitle("Watch style")
+                .setSingleChoiceItems(Store.WATCH_STYLES, Store.watchStyle(this), (d, which) -> {
+                    Store.setWatchStyle(this, which, System.currentTimeMillis());
+                    d.dismiss();
+                    refresh();
+                })
+                .show());
+
         section("Water");
         row("One glass", null).setText("1/3 litre");
 
@@ -255,6 +266,7 @@ public class SettingsActivity extends Activity {
         watchValue.setText(Store.watchReminders(this) ? "On" : "Off");
         styleValue.setText(Store.islandStyle(this) ? "Island" : "Normal notification");
         goalValue.setText(Store.goalGlasses(this) + " glasses");
+        watchStyleValue.setText(Store.WATCH_STYLES[Store.watchStyle(this)]);
         for (Runnable r : permRefreshers) r.run();
     }
 }

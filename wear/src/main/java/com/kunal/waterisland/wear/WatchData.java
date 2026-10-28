@@ -75,7 +75,13 @@ final class WatchData {
         ArrayList<Integer> week = m.getIntegerArrayList("week");
         StringBuilder w = new StringBuilder();
         if (week != null) for (int glasses : week) w.append(w.length() == 0 ? "" : ",").append(glasses);
-        prefs(c).edit()
+        // The newest style choice wins, whether it was made on the phone or on this watch.
+        SharedPreferences.Editor ed = prefs(c).edit();
+        long styleAt = m.getLong("styleAt");
+        if (m.containsKey("style") && styleAt > styleAt(c)) {
+            ed.putInt("style", m.getInt("style")).putLong("styleAt", styleAt);
+        }
+        ed
                 .putInt("glasses", m.getInt("glasses"))
                 .putInt("goalGlasses", m.getInt("goalGlasses", 10))
                 .putInt("streak", m.getInt("streak"))
@@ -84,6 +90,20 @@ final class WatchData {
                 .putString("pending", String.join(";", keep))
                 .apply();
         requestRefresh(c);
+    }
+
+    /** Look of the Today page, 0..11; 6 (rising water) until the phone or the watch picks another. */
+    static int style(Context c) { return prefs(c).getInt("style", 6); }
+    static long styleAt(Context c) { return prefs(c).getLong("styleAt", 0L); }
+
+    /** Picks a look on the watch and tells the phone, which keeps the newest choice. */
+    static void setStyle(Context c, int style) {
+        long at = System.currentTimeMillis();
+        prefs(c).edit().putInt("style", style).putLong("styleAt", at).apply();
+        PutDataMapRequest req = PutDataMapRequest.create("/style/" + UUID.randomUUID());
+        req.getDataMap().putInt("style", style);
+        req.getDataMap().putLong("at", at);
+        Wearable.getDataClient(c).putDataItem(req.asPutDataRequest().setUrgent());
     }
 
     /** Records +1 or -1 glass locally and sends it to the phone, which stays the master copy. */

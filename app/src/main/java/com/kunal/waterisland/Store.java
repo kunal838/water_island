@@ -95,6 +95,24 @@ final class Store {
     static boolean watchReminders(Context c) { return p(c).getBoolean("watchReminders", true); }
     static void setWatchReminders(Context c, boolean on) { p(c).edit().putBoolean("watchReminders", on).apply(); }
 
+    /** Look of the watch's Today page. The order matches the watch app's drawing code. */
+    static final String[] WATCH_STYLES = {
+            "Triple arcs", "Cookie fill", "Wavy ring", "Squircle liquid", "Gauge and pills", "Bloom",
+            "Rising water", "Ring and drop", "Big glass", "Aquarium", "Growing plant", "Orbit"};
+    static final int DEFAULT_WATCH_STYLE = 6;
+
+    static int watchStyle(Context c) {
+        int s = p(c).getInt("watchStyle", DEFAULT_WATCH_STYLE);
+        return s >= 0 && s < WATCH_STYLES.length ? s : DEFAULT_WATCH_STYLE;
+    }
+    /** When the style last changed, in epoch ms; the newer of the phone's and the watch's choice wins. */
+    static long watchStyleAt(Context c) { return p(c).getLong("watchStyleAt", 0L); }
+    static void setWatchStyle(Context c, int style, long at) {
+        if (style < 0 || style >= WATCH_STYLES.length) return;
+        p(c).edit().putInt("watchStyle", style).putLong("watchStyleAt", at).apply();
+        WearSync.push(c);
+    }
+
     static boolean sound(Context c) { return p(c).getBoolean("sound", true); }
     static void setSound(Context c, boolean on) { p(c).edit().putBoolean("sound", on).apply(); }
 

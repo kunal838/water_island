@@ -22,6 +22,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.google.android.gms.wearable.DataClient;
@@ -47,12 +48,16 @@ import java.util.UUID;
 public class WatchActivity extends Activity implements DataClient.OnDataChangedListener {
     private static final int GRAY = 0xFF9AA5B1;
     private static final String TITLE = "Change today";
+    private static final int PAGES = 4;   // Today, This week, Change today, Style
     private static final long PENDING_MAX_AGE_MS = 2L * 24 * 60 * 60 * 1000;
 
     private SharedPreferences prefs;
     private HorizontalScrollView pager;
     private int pageW;
     private TodayView todayView;
+    private TextView[] styleRows;
+    private float tapX;
+    private float tapY;
     private WeekView weekView;
     private DotsView dots;
     private TextView addTitle;
@@ -102,203 +107,6 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     }
 
     // ---- views ---------------------------------------------------------------------------
-
-    /**
-     * Today's screen: the round display is a glass. The water rises with your progress and its surface
-     * waves while the screen is on (the wave stops when the screen dims).
-     */
-    private static final class TodayView extends View {
-        private static final String HINT = "Tap to add";
-        private static final int BUBBLES = 9;
-        private final Paint front = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint back = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint crest = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint bubble = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint drop = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint rim = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path wave = new Path();
-        private final Path crestLine = new Path();
-        private final Path circle = new Path();
-        private final java.util.Random random = new java.util.Random();
-        private final float[] bx = new float[BUBBLES];     // bubble position and look
-        private final float[] by = new float[BUBBLES];
-        private final float[] br = new float[BUBBLES];
-        private final float[] bs = new float[BUBBLES];     // rising speed in px per second
-        private final float[] bp = new float[BUBBLES];     // wobble offset
-        private boolean seeded;
-        private long lastFrame;
-        private final float d;
-        private float shown;      // water level now, 0 to 1, eased towards the target
-        private float phase;      // wave position, 0 to 2*pi
-        private float splash = 1f; // 0 to 1 while a splash plays, 1 when idle
-        private int glasses;
-        private int goal = 10;
-        private String hint = HINT;
-        private ValueAnimator waveAnim;
-        private ValueAnimator levelAnim;
-        private ValueAnimator splashAnim;
-
-        TodayView(Context c) {
-            super(c);
-            d = c.getResources().getDisplayMetrics().density;
-            front.setColor(0xFF4FC3F7);
-            back.setColor(0x881D6FE0);
-            crest.setStyle(Paint.Style.STROKE);
-            crest.setStrokeWidth(2.5f * d);
-            crest.setStrokeCap(Paint.Cap.ROUND);
-            crest.setColor(0x99FFFFFF);
-            bubble.setStyle(Paint.Style.STROKE);
-            bubble.setStrokeWidth(1.5f * d);
-            bubble.setColor(0x80FFFFFF);
-            drop.setColor(0xFFFFFFFF);
-            rim.setStyle(Paint.Style.STROKE);
-            rim.setStrokeWidth(2 * d);
-            rim.setColor(0x33FFFFFF);
-            text.setTextAlign(Paint.Align.CENTER);
-            text.setColor(Color.WHITE);
-            setClickable(true);
-        }
-
-        void set(float pct, int glasses, int goal) {
-            this.glasses = glasses;
-            this.goal = goal;
-            float target = Math.max(0f, Math.min(1f, pct));
-            if (levelAnim != null) levelAnim.cancel();
-            levelAnim = ValueAnimator.ofFloat(shown, target);
-            levelAnim.setDuration(700);
-            levelAnim.addUpdateListener(a -> {
-                shown = (Float) a.getAnimatedValue();
-                invalidate();
-            });
-            levelAnim.start();
-        }
-
-        void startWave() {
-            if (waveAnim == null) {
-                waveAnim = ValueAnimator.ofFloat(0f, (float) (2 * Math.PI));
-                waveAnim.setDuration(2800);
-                waveAnim.setRepeatCount(ValueAnimator.INFINITE);
-                waveAnim.setInterpolator(new LinearInterpolator());
-                waveAnim.addUpdateListener(a -> {
-                    phase = (Float) a.getAnimatedValue();
-                    invalidate();
-                });
-            }
-            if (!waveAnim.isRunning()) waveAnim.start();
-        }
-
-        void stopWave() {
-            if (waveAnim != null) waveAnim.cancel();
-            lastFrame = 0;
-        }
-
-        /** Shows a short message such as "+333" in place of the hint, and plays the splash. */
-        void flash(String message) {
-            hint = message;
-            if (splashAnim != null) splashAnim.cancel();
-            splashAnim = ValueAnimator.ofFloat(0f, 1f);
-            splashAnim.setDuration(1500);
-            splashAnim.setInterpolator(new LinearInterpolator());
-            splashAnim.addUpdateListener(a -> {
-                splash = (Float) a.getAnimatedValue();
-                invalidate();
-            });
-            splashAnim.start();
-            postDelayed(() -> {
-                hint = HINT;
-                invalidate();
-            }, 1400);
-        }
-
-        /**
-         * Draws one wave layer. {@code speed} sets how fast and which way it travels, {@code cycles} how
-         * many crests fit across the screen. When {@code withCrest} is set it also builds the surface line.
-         */
-        private void drawWave(Canvas c, float level, float amplitude, float shift, float speed,
-                float cycles, Paint paint, boolean withCrest) {
-            float w = getWidth(), h = getHeight();
-            wave.reset();
-            wave.moveTo(0, h);
-            crestLine.reset();
-            boolean first = true;
-            for (float x = 0; x <= w + 8 * d; x += 8 * d) {
-                float y = level + amplitude * (float) Math.sin(speed * phase + shift + x / w * 2 * Math.PI * cycles);
-                wave.lineTo(x, y);
-                if (first) crestLine.moveTo(x, y); else crestLine.lineTo(x, y);
-                first = false;
-            }
-            wave.lineTo(w, h);
-            wave.close();
-            c.drawPath(wave, paint);
-            if (withCrest) c.drawPath(crestLine, crest);
-        }
-
-        private void respawnBubble(int i, float w, float h, float level, boolean anywhere) {
-            br[i] = (2f + 3f * random.nextFloat()) * d;
-            bx[i] = w * (0.15f + 0.7f * random.nextFloat());
-            by[i] = anywhere ? level + 12 * d + random.nextFloat() * Math.max(1f, h - level - 12 * d)
-                    : h + br[i];
-            bs[i] = (14f + 20f * random.nextFloat()) * d;
-            bp[i] = random.nextFloat() * 6.28f;
-        }
-
-        @Override
-        protected void onDraw(Canvas c) {
-            float w = getWidth(), h = getHeight();
-            long now = System.nanoTime();
-            float dt = lastFrame == 0 ? 0f : Math.min(0.05f, (now - lastFrame) / 1e9f);
-            lastFrame = now;
-
-            circle.reset();
-            circle.addCircle(w / 2f, h / 2f, Math.min(w, h) / 2f, Path.Direction.CW);
-            c.save();
-            c.clipPath(circle);
-            // Keep a thin sliver of water even at zero, and stop just short of the top at full.
-            float level = h - h * (0.05f + 0.90f * shown);
-
-            // A splash makes the surface slosh: bigger waves that settle back down.
-            float slosh = splash >= 0.3f && splash < 1f ? 1f - (splash - 0.3f) / 0.7f : 0f;
-            float boost = 1f + 2f * slosh;
-            drawWave(c, level, 7 * d * boost, 1.3f, 1f, 1.0f, back, false);
-            drawWave(c, level + 4 * d, 5 * d * boost, 0f, -2f, 1.4f, front, true);
-
-            // Bubbles drift up through the water and start again at the bottom.
-            if (!seeded) {
-                for (int i = 0; i < BUBBLES; i++) respawnBubble(i, w, h, level, true);
-                seeded = true;
-            }
-            for (int i = 0; i < BUBBLES; i++) {
-                by[i] -= bs[i] * dt;
-                if (by[i] < level + 10 * d) respawnBubble(i, w, h, level, false);
-                float x = bx[i] + 4 * d * (float) Math.sin(phase * 2 + bp[i]);
-                c.drawCircle(x, by[i], br[i], bubble);
-            }
-
-            // A drop falls into the water, then a ripple spreads from where it lands.
-            if (splash < 0.3f) {
-                float t = splash / 0.3f;
-                c.drawCircle(w / 2f, h * 0.14f + (level - h * 0.14f) * t * t, 6 * d, drop);
-            } else if (splash < 0.8f) {
-                float t = (splash - 0.3f) / 0.5f;
-                float rx = t * 0.35f * w;
-                crest.setAlpha((int) (200 * (1f - t)));
-                c.drawOval(w / 2f - rx, level + 4 * d - rx * 0.18f, w / 2f + rx, level + 4 * d + rx * 0.18f, crest);
-                crest.setAlpha(0x99);
-            }
-            c.restore();
-            c.drawCircle(w / 2f, h / 2f, Math.min(w, h) / 2f - d, rim);
-
-            text.setTypeface(Typeface.DEFAULT_BOLD);
-            text.setTextSize(64 * d);
-            c.drawText(String.valueOf(glasses), w / 2f, h / 2f + 16 * d, text);
-            text.setTypeface(Typeface.DEFAULT);
-            text.setTextSize(14 * d);
-            c.drawText("of " + goal + " glasses", w / 2f, h / 2f + 42 * d, text);
-            text.setTextSize(12 * d);
-            c.drawText(hint, w / 2f, h * 0.88f, text);
-        }
-    }
 
     private static final class WeekView extends View {
         private static final String[] DAYS = {"M", "T", "W", "T", "F", "S", "S"};
@@ -371,9 +179,9 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
 
         @Override
         protected void onDraw(Canvas c) {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < PAGES; i++) {
                 paint.setColor(i == index ? Color.WHITE : 0x55FFFFFF);
-                c.drawCircle(getWidth() / 2f + (i - 1) * 14 * d, getHeight() / 2f, 3.5f * d, paint);
+                c.drawCircle(getWidth() / 2f + (i - (PAGES - 1) / 2f) * 14 * d, getHeight() / 2f, 3.5f * d, paint);
             }
         }
     }
@@ -400,16 +208,23 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         LinearLayout strip = new LinearLayout(this);
         todayView = new TodayView(this);
         // Tapping the water adds one glass.
+        todayView.setOnTouchListener((v, e) -> {
+            tapX = e.getX();
+            tapY = e.getY();
+            return false;
+        });
         todayView.setOnClickListener(v -> {
-            WatchData.addDrink(this, 1);
+            int delta = todayView.tapDelta(tapX, tapY);
+            WatchData.addDrink(this, delta);
             v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
-            todayView.flash("+1 glass");
+            todayView.flash(delta > 0 ? "+1 glass" : "−1 glass");
             refresh();
         });
         weekView = new WeekView(this);
         strip.addView(todayView, new LinearLayout.LayoutParams(pageW, pageH));
         strip.addView(weekView, new LinearLayout.LayoutParams(pageW, pageH));
         strip.addView(buildAddPage(), new LinearLayout.LayoutParams(pageW, pageH));
+        strip.addView(buildStylePage(), new LinearLayout.LayoutParams(pageW, pageH));
 
         pager = new HorizontalScrollView(this);
         pager.setHorizontalScrollBarEnabled(false);
@@ -451,6 +266,52 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         return page;
     }
 
+    /** Fourth page: a list of the Today looks. Picking one applies it here and on the phone. */
+    private View buildStylePage() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        col.setPadding(0, (int) dp(52), 0, (int) dp(64));
+        TextView title = new TextView(this);
+        title.setText("Style");
+        title.setTextColor(GRAY);
+        title.setTextSize(15);
+        title.setGravity(Gravity.CENTER);
+        col.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        styleRows = new TextView[TodayView.NAMES.length];
+        for (int i = 0; i < styleRows.length; i++) {
+            final int which = i;
+            TextView row = new TextView(this);
+            row.setTextSize(15);
+            row.setGravity(Gravity.CENTER);
+            row.setOnClickListener(v -> {
+                WatchData.setStyle(this, which);
+                v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+                refresh();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) dp(150), (int) dp(40));
+            lp.topMargin = (int) dp(6);
+            col.addView(row, lp);
+            styleRows[i] = row;
+        }
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
+        return sv;
+    }
+
+    private void showStyle(int selected) {
+        for (int i = 0; i < styleRows.length; i++) {
+            boolean on = i == selected;
+            styleRows[i].setText(TodayView.NAMES[i]);
+            styleRows[i].setTextColor(on ? Color.BLACK : Color.WHITE);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(on ? Color.WHITE : 0x1FFFFFFF);
+            bg.setCornerRadius(dp(20));
+            styleRows[i].setBackground(bg);
+        }
+    }
+
     private LinearLayout.LayoutParams buttonParams() {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) dp(130), (int) dp(46));
         lp.topMargin = (int) dp(8);
@@ -476,13 +337,22 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         int goal = Math.max(1, stateInt("goalGlasses", 10));
         int total = WatchData.totalGlasses(this);
 
-        todayView.set((float) total / goal, total, goal);
-
         int[] week = stateWeek();
         int todayIdx = stateInt("todayIdx", 0);
         week[todayIdx] = total;
         float[] glasses = new float[7];
-        for (int i = 0; i < 7; i++) glasses[i] = week[i];
+        float sum = 0f;
+        int days = 0;
+        for (int i = 0; i < 7; i++) {
+            glasses[i] = week[i];
+            if (i <= todayIdx && week[i] > 0) { sum += week[i]; days++; }
+        }
+        float weekFrac = days == 0 ? 0f : Math.min(1f, sum / days / goal);
+        float streakFrac = Math.min(1f, stateInt("streak", 0) / 7f);
+        int style = WatchData.style(this);
+        todayView.setStyle(style);
+        todayView.set((float) total / goal, total, goal, weekFrac, streakFrac);
+        showStyle(style);
         weekView.set(glasses, todayIdx, goal);
     }
 
