@@ -1,4 +1,4 @@
-# Water Island
+﻿# Water Island
 
 A water-reminder app for Android phones and Galaxy Watches.
 
@@ -45,15 +45,15 @@ If someone gave you this project with an **`apk`** folder, you can skip Android 
 
 | File | Goes on | Needs |
 | --- | --- | --- |
-| `WaterIsland-phone-1.1.apk` | Your Android phone | Android 8 or newer |
-| `WaterIsland-watch-1.1.apk` | Your Galaxy Watch | A Wear OS watch (the author tested a Galaxy Watch 7) |
+| `WaterIsland-phone-1.2.apk` | Your Android phone | Android 8 or newer |
+| `WaterIsland-watch-1.2.apk` | Your Galaxy Watch | A Wear OS watch (the author tested a Galaxy Watch 7) |
 | `SHA256SUMS.txt` | Nothing; it is a list of checksums to check the files are not damaged | |
 
 > **Install both from the same folder.** The two apps were built together and signed with the same key. That is what lets the phone and watch talk to each other. If you mix files from different builds, or rebuild only one of them yourself, the sync will stop working.
 
 ### Install on the phone
 
-1. Copy `WaterIsland-phone-1.1.apk` to the phone (USB cable, Google Drive, WhatsApp to yourself, or Nearby Share).
+1. Copy `WaterIsland-phone-1.2.apk` to the phone (USB cable, Google Drive, WhatsApp to yourself, or Nearby Share).
 2. Open the file from the **Files** app (or from the chat or browser you received it in).
 3. Android asks to allow **Install unknown apps** for the app you opened it from. Turn it on, go back, and tap **Install**.
 4. If **Play Protect** says it does not recognise the developer, tap **More details > Install anyway**. This warning appears for any app that is not from the Play Store.
@@ -68,7 +68,7 @@ A watch cannot open an APK by itself, so this part needs a computer. You do **no
 3. In a terminal, in the folder with the APK files, run (use your watch's address from `adb devices`):
 
 ```bash
-adb -s 192.168.1.25:40567 install -r WaterIsland-watch-1.1.apk
+adb -s 192.168.1.25:40567 install -r WaterIsland-watch-1.2.apk
 ```
 
 4. Open **Water Island** on the watch, tap **Allow** for notifications, then continue from **Step 5e**.
@@ -77,10 +77,10 @@ adb -s 192.168.1.25:40567 install -r WaterIsland-watch-1.1.apk
 
 ```bash
 # Windows (PowerShell)
-Get-FileHash WaterIsland-phone-1.1.apk -Algorithm SHA256
+Get-FileHash WaterIsland-phone-1.2.apk -Algorithm SHA256
 
 # macOS or Linux
-shasum -a 256 WaterIsland-phone-1.1.apk
+shasum -a 256 WaterIsland-phone-1.2.apk
 ```
 
 The long code it prints must match the line for that file in `SHA256SUMS.txt`.
@@ -206,7 +206,7 @@ adb -s 192.168.1.25:40567 install -r wear/build/outputs/apk/debug/wear-debug.apk
 
 1. Open **Water Island** on the watch (it is in the app list; the icon is a white drop outline).
 2. Tap **Allow** when it asks about notifications.
-3. Swipe sideways between three pages: **Today**, **This week**, **Add water**.
+3. Swipe sideways between three pages: **Today**, **This week**, **Change today**.
 
 ### 5f. Optional: a tile and a watch-face complication
 
@@ -222,15 +222,19 @@ The watch app targets Wear OS 3 and newer, so it is built to work on both. Only 
 ## Using the app
 
 **Phone**
-- Tap **250 / 333 / 500** to add water. The white one is your usual glass size.
-- Tap the big litres number to open a sheet where you can add or remove a custom amount, or **Undo last drink**.
+Everything is counted in **glasses**. **3 glasses = 1 litre**, so one glass is 1/3 litre. There are no millilitre amounts.
+
+- Tap **+ 1 glass** after you drink, or **âˆ’ 1 glass** to fix a mistake.
+- The big number is today's glasses, with the litres and your goal underneath.
 - The cards show your week as bars and a trend line, with your average and best day.
-- **Settings** has the reminder interval, sound, glass size, daily goal, **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
+- **Settings** has the reminder interval, sound, daily goal (in glasses), **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
+- **Export data** (Excel, JSON or CSV) lists glasses and litres per day, today's log, and your settings.
 
 **Watch**
-- **Today:** a ring and your glass count.
+- **Today:** rising water that fills toward your goal. Tap the water to add 1 glass.
 - **This week:** the bars for the week.
-- **Add water:** three buttons. When a reminder arrives the watch buzzes and shows a card with **+1 glass**.
+- **Change today:** **+ 1 glass** and **âˆ’ 1 glass** buttons. When a reminder arrives the watch buzzes and shows a card with **+1 glass**.
+- **Tile:** **âˆ’1** and **+1** buttons.
 
 ## How the phone and watch stay in sync
 
@@ -257,16 +261,16 @@ Build both apps, then copy the two APKs into the `apk` folder:
 
 ```bash
 # Windows (PowerShell)
-.\gradlew.bat clean :app:assembleDebug :wear:assembleDebug
+.\gradlew.bat clean :app:assembleRelease :wear:assembleRelease
 
 # macOS or Linux
-./gradlew clean :app:assembleDebug :wear:assembleDebug
+./gradlew clean :app:assembleRelease :wear:assembleRelease
 ```
 
 The files appear at:
 
-- `app/build/outputs/apk/debug/app-debug.apk` (phone)
-- `wear/build/outputs/apk/debug/wear-debug.apk` (watch)
+- `app/build/outputs/apk/release/app-release.apk` (phone)
+- `wear/build/outputs/apk/release/wear-release.apk` (watch)
 
 Rename them to `WaterIsland-phone-<version>.apk` and `WaterIsland-watch-<version>.apk`, and make a `SHA256SUMS.txt` with a line per file in the form `<checksum>  <file name>` (the commands in the checksum section above print the checksum).
 
@@ -284,7 +288,7 @@ Install the newer APK over the old one and their data is kept. This only works i
 
 ### Things to know
 
-- **These are debug builds.** They are signed with the debug key from the computer that built them, and they are marked "debuggable", which means someone with your unlocked phone and USB debugging on could read the app's data. That is fine for friends and family, but not for the public.
+- **These builds are not debuggable**, so other apps and USB tools cannot read the app's data. They are still signed with the debug key from the computer that built them, which is fine for friends and family but not for the public (see the release steps below).
 - **Sync needs the same key on both apps.** Never share the phone file from one build and the watch file from another, and tell people not to rebuild only one app.
 - **Play Protect** may warn about an unknown developer. It is a normal warning for apps outside the Play Store.
 - **The island** only appears on Android 16 phones that draw it. Everyone else gets the normal notification (**Settings > Reminder style**).

@@ -10,8 +10,18 @@ android {
         applicationId 'com.kunal.waterisland'
         minSdk 26
         targetSdk 36
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '1.2'
+    }
+
+    buildTypes {
+        release {
+            // Not debuggable. Signed with the debug key for now so it installs over existing debug builds
+            // and still matches the watch app's key; use your own release key before publishing widely.
+            debuggable false
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
     }
 
     compileOptions {

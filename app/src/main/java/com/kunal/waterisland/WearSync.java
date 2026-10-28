@@ -39,14 +39,12 @@ final class WearSync {
         try {
             PutDataMapRequest req = PutDataMapRequest.create(PATH_STATE);
             DataMap m = req.getDataMap();
-            m.putInt("todayMl", Store.todayMl(c));
-            m.putInt("goalMl", Store.goalMl(c));
-            m.putInt("glassMl", Store.glassMl(c));
+            m.putInt("glasses", Store.todayGlasses(c));
             m.putInt("goalGlasses", Store.goalGlasses(c));
             m.putInt("streak", Store.streakDays(c));
             m.putInt("todayIdx", Store.todayIndex());
             ArrayList<Integer> week = new ArrayList<>();
-            for (int ml : Store.weekMl(c)) week.add(ml);
+            for (int glasses : Store.weekGlasses(c)) week.add(glasses);
             m.putIntegerArrayList("week", week);
             m.putStringArrayList("applied", new ArrayList<>(Store.wearApplied(c)));
             m.putLong("sentAt", System.currentTimeMillis());   // makes every push a change

@@ -25,8 +25,7 @@ public class WaterComplicationService extends ComplicationDataSourceService {
 
     @Override
     public void onComplicationRequest(ComplicationRequest request, ComplicationRequestListener listener) {
-        int glassMl = Math.max(1, WatchData.get(this, "glassMl", 333));
-        int glasses = Math.round((float) WatchData.totalMl(this) / glassMl);
+        int glasses = WatchData.totalGlasses(this);
         int goal = Math.max(1, WatchData.get(this, "goalGlasses", 10));
         try {
             listener.onComplicationData(build(request.getComplicationType(), glasses, goal));

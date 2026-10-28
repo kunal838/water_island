@@ -19,9 +19,9 @@ public class WearSyncService extends WearableListenerService {
 
             String id = path.substring(WearSync.PATH_ADD.length());
             int delta = DataMapItem.fromDataItem(item).getDataMap().getInt("delta");
-            // Ignore amounts outside what the watch can send, and anything already applied.
-            if (Math.abs(delta) <= 2000 && delta != 0 && Store.wearMarkApplied(this, id)) {
-                Store.adjustMl(this, delta);
+            // The watch only sends +1 or -1 glass. Ignore anything else, and anything already applied.
+            if (Math.abs(delta) <= 5 && delta != 0 && Store.wearMarkApplied(this, id)) {
+                Store.addGlasses(this, delta);
                 IslandService.refreshFromWatch();
             }
             Wearable.getDataClient(this).deleteDataItems(item.getUri());

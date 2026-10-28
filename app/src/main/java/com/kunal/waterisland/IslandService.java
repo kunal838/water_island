@@ -132,19 +132,20 @@ public class IslandService extends Service {
      * the island chip and expanded card. Shown on each reminder, cleared after a while.
      */
     private void postLiveUpdate(int mode) {
-        int ml = Store.todayMl(this);
-        int glass = Store.glassMl(this);
+        int glasses = Store.todayGlasses(this);
         int goalGlasses = Store.goalGlasses(this);
         int streak = Store.streakDays(this);
-        // Progress counts partial glasses (100 per glass) so the bar fills smoothly.
-        int progress = Math.min(goalGlasses * 100, Math.round(100f * ml / glass));
+        // The bar counts 100 per glass, one block per glass in the island card.
+        // One block per glass up to 10 blocks. Vivo draws more than 10 as a merged bar, so a bigger goal uses
+        // 10 blocks that each stand for a share of the goal, and progress is scaled to match.
+        int blocks = Math.min(goalGlasses, 10);
+        int progress = Math.round(100f * blocks * Math.min(glasses, goalGlasses) / goalGlasses);
         boolean island = Store.islandStyle(this);
 
-        PendingIntent add = PendingIntent.getBroadcast(this, 1,
-                new Intent(this, AddReceiver.class).putExtra("ml", glass),
+        PendingIntent add = PendingIntent.getBroadcast(this, 1, new Intent(this, AddReceiver.class),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         boolean prompt = mode == LIVE_PROMPT;
-        if (prompt) WearSync.remind(this, Store.glassesDrunk(this), goalGlasses);
+        if (prompt) WearSync.remind(this, glasses, goalGlasses);
         Notification.Builder b = new Notification.Builder(this, Store.sound(this) ? CH_LIVE : CH_LIVE_QUIET)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 // With watch reminders on, the watch gets its own card, so don't mirror this one too.
@@ -160,11 +161,11 @@ public class IslandService extends Service {
                 .addAction(new Notification.Action.Builder(null, "+1 glass", add).build());
         if (island) {
             String chip = prompt ? "Drink!" : streak == 0 ? "Start!" : streak + (streak == 1 ? " day" : " days");
-            applyIsland(b, chip, goalGlasses, progress);
+            applyIsland(b, chip, blocks, progress);
         } else {
             // Normal notification: a plain progress bar, and it can be swiped away. Some phones draw their
             // own generic app picture here, so give it the app icon explicitly.
-            b.setProgress(goalGlasses * 100, progress, false).setAutoCancel(true).setLargeIcon(appIcon());
+            b.setProgress(blocks * 100, progress, false).setAutoCancel(true).setLargeIcon(appIcon());
         }
         getSystemService(NotificationManager.class).notify(NOTIF_LIVE, b.build());
 
@@ -184,9 +185,9 @@ public class IslandService extends Service {
      * Android 16 only: turns the notification into a Live Update, which the system draws as the island chip
      * (short text) and expanded card (one block per glass). Callers check {@link Store#islandStyle} first.
      */
-    private void applyIsland(Notification.Builder b, String chip, int goalGlasses, int progress) {
+    private void applyIsland(Notification.Builder b, String chip, int blocks, int progress) {
         Notification.ProgressStyle style = new Notification.ProgressStyle().setStyledByProgress(true);
-        for (int i = 0; i < goalGlasses; i++) {
+        for (int i = 0; i < blocks; i++) {
             style.addProgressSegment(new Notification.ProgressStyle.Segment(100).setColor(FLAME));
         }
         style.setProgress(progress);
@@ -217,7 +218,7 @@ public class IslandService extends Service {
     /** Today's progress and what is needed to keep or start the streak. */
     private String streakText(int streak) {
         int goal = Store.goalGlasses(this);
-        int drunk = Store.glassesDrunk(this);
+        int drunk = Store.todayGlasses(this);
         if (drunk >= goal) return "Goal done today, streak safe";
         int left = goal - drunk;
         return drunk + " of " + goal + " today · " + left + (left == 1 ? " glass" : " glasses")

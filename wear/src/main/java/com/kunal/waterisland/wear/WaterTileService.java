@@ -15,10 +15,10 @@ import androidx.wear.tiles.TileService;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
-/** Watch tile: today's glasses, with 250, 333 and 500 ml buttons that add water straight away. */
+/** Watch tile: today's glasses, with -1 and +1 glass buttons that change the count straight away. */
 public class WaterTileService extends TileService {
     private static final String RES_VERSION = "1";
-    private static final int[] AMOUNTS = {250, 333, 500};
+    private static final int[] CHANGES = {-1, 1};
 
     @NonNull
     @Override
@@ -29,14 +29,13 @@ public class WaterTileService extends TileService {
             WatchData.addDrink(this, Integer.parseInt(clicked.substring(3)));
         }
 
-        int glassMl = Math.max(1, WatchData.get(this, "glassMl", 333));
-        int glasses = Math.round((float) WatchData.totalMl(this) / glassMl);
+        int glasses = WatchData.totalGlasses(this);
         int goal = Math.max(1, WatchData.get(this, "goalGlasses", 10));
 
         LayoutElementBuilders.Row.Builder row = new LayoutElementBuilders.Row.Builder();
-        for (int i = 0; i < AMOUNTS.length; i++) {
-            if (i > 0) row.addContent(spacer(6));
-            row.addContent(pill(AMOUNTS[i], AMOUNTS[i] == glassMl));
+        for (int i = 0; i < CHANGES.length; i++) {
+            if (i > 0) row.addContent(spacer(8));
+            row.addContent(pill(CHANGES[i], CHANGES[i] > 0));
         }
 
         LayoutElementBuilders.Column column = new LayoutElementBuilders.Column.Builder()
@@ -86,9 +85,9 @@ public class WaterTileService extends TileService {
                 .build();
     }
 
-    private static LayoutElementBuilders.LayoutElement pill(int ml, boolean preferred) {
+    private static LayoutElementBuilders.LayoutElement pill(int change, boolean preferred) {
         ModifiersBuilders.Clickable click = new ModifiersBuilders.Clickable.Builder()
-                .setId("add" + ml)
+                .setId("add" + change)
                 .setOnClick(new ActionBuilders.LoadAction.Builder().build())
                 .build();
         ModifiersBuilders.Modifiers modifiers = new ModifiersBuilders.Modifiers.Builder()
@@ -99,12 +98,12 @@ public class WaterTileService extends TileService {
                         .build())
                 .build();
         return new LayoutElementBuilders.Box.Builder()
-                .setWidth(DimensionBuilders.dp(58))
-                .setHeight(DimensionBuilders.dp(38))
+                .setWidth(DimensionBuilders.dp(72))
+                .setHeight(DimensionBuilders.dp(40))
                 .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
                 .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
                 .setModifiers(modifiers)
-                .addContent(text(String.valueOf(ml), 14, preferred ? 0xFF000000 : 0xFFFFFFFF, true))
+                .addContent(text(change < 0 ? "−1" : "+1", 18, preferred ? 0xFF000000 : 0xFFFFFFFF, true))
                 .build();
     }
 }

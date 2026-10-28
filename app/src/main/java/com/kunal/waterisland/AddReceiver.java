@@ -8,7 +8,7 @@ import android.content.Intent;
 public class AddReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {
-        Store.addMl(c, intent.getIntExtra("ml", Store.glassMl(c)));
+        Store.addGlasses(c, 1);
         c.startForegroundService(new Intent(c, IslandService.class).setAction(IslandService.ACTION_REFRESH));
     }
 }

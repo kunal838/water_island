@@ -9,28 +9,64 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
-/** Persisted settings and today's intake. The total resets when the calendar day changes. */
+/**
+ * Persisted settings and today's intake. Everything is counted in glasses, and 3 glasses make 1 litre.
+ * The total resets when the calendar day changes.
+ */
 final class Store {
     static final int START_HOUR = 8;   // first reminder
     static final int END_HOUR = 22;    // no reminders at or after this hour
-    static final int[] CHOICES_ML = {150, 250, 333, 500};
+    static final int GLASSES_PER_LITRE = 3;
+    private static final int MAX_GLASSES = 60;
 
     private Store() {}
 
     private static SharedPreferences p(Context c) {
-        return c.getSharedPreferences("water", Context.MODE_PRIVATE);
+        SharedPreferences s = c.getSharedPreferences("water", Context.MODE_PRIVATE);
+        if (!s.getBoolean("inGlasses", false)) migrateToGlasses(s);
+        return s;
     }
+
+    /**
+     * Older versions stored millilitres. A glass is a third of a litre, so convert today's total, every saved
+     * day and today's log once, then drop the old keys.
+     */
+    private static void migrateToGlasses(SharedPreferences s) {
+        SharedPreferences.Editor e = s.edit();
+        for (Map.Entry<String, ?> en : s.getAll().entrySet()) {
+            String k = en.getKey();
+            if (k.startsWith("d_") && en.getValue() instanceof Integer) {
+                e.putInt("dg_" + k.substring(2), mlToGlasses((Integer) en.getValue()));
+                e.remove(k);
+            }
+        }
+        if (s.contains("ml")) e.putInt("glasses", mlToGlasses(s.getInt("ml", 0)));
+        String old = s.getString("log", "");
+        if (!old.isEmpty()) {
+            StringBuilder log = new StringBuilder();
+            for (String entry : old.split(";")) {
+                String[] parts = entry.split(":");
+                if (parts.length != 2) continue;
+                int ml = Integer.parseInt(parts[1]);
+                int glasses = Math.max(1, mlToGlasses(Math.abs(ml))) * (ml < 0 ? -1 : 1);
+                log.append(log.length() == 0 ? "" : ";").append(parts[0]).append(':').append(glasses);
+            }
+            e.putString("logg", log.toString());
+        }
+        e.remove("ml").remove("log").remove("glassMl").putBoolean("inGlasses", true).apply();
+    }
+
+    private static int mlToGlasses(int ml) { return Math.round(ml * (float) GLASSES_PER_LITRE / 1000f); }
 
     private static String today() {
         return new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date());
     }
 
-    static int glassMl(Context c) { return p(c).getInt("glassMl", 333); }
-    static void setGlassMl(Context c, int ml) {
-        p(c).edit().putInt("glassMl", ml).apply();
-        WearSync.push(c);
-    }
+    /** Litres for a number of glasses, using 3 glasses = 1 litre. */
+    static float litres(int glasses) { return glasses / (float) GLASSES_PER_LITRE; }
 
     static int goalGlasses(Context c) { return p(c).getInt("goalGlasses", 10); }
     static void setGoalGlasses(Context c, int n) {
@@ -62,28 +98,25 @@ final class Store {
     static boolean sound(Context c) { return p(c).getBoolean("sound", true); }
     static void setSound(Context c, boolean on) { p(c).edit().putBoolean("sound", on).apply(); }
 
-    static int todayMl(Context c) {
+    static int todayGlasses(Context c) {
         SharedPreferences s = p(c);
-        return today().equals(s.getString("day", "")) ? s.getInt("ml", 0) : 0;
+        return today().equals(s.getString("day", "")) ? s.getInt("glasses", 0) : 0;
     }
 
-    /** Adds water and records it in today's log as "epochMs:ml" entries separated by ';'. */
-    static void addMl(Context c, int ml) { adjustMl(c, ml); }
-
     /**
-     * Adds (positive) or removes (negative) water for today. The total never goes below 0, and the log
-     * records the amount actually applied so undo restores exactly what changed.
+     * Adds (positive) or removes (negative) glasses for today. The total stays between 0 and a sane maximum,
+     * and the log records the change that was actually applied.
      */
-    static void adjustMl(Context c, int delta) {
+    static void addGlasses(Context c, int delta) {
         SharedPreferences s = p(c);
         boolean sameDay = today().equals(s.getString("day", ""));
-        String log = sameDay ? s.getString("log", "") : "";
-        int before = sameDay ? s.getInt("ml", 0) : 0;
-        int total = Math.max(0, before + delta);
+        String log = sameDay ? s.getString("logg", "") : "";
+        int before = sameDay ? s.getInt("glasses", 0) : 0;
+        int total = Math.max(0, Math.min(MAX_GLASSES, before + delta));
         int applied = total - before;
         if (applied == 0) return;
         log += (log.isEmpty() ? "" : ";") + System.currentTimeMillis() + ":" + applied;
-        s.edit().putString("day", today()).putInt("ml", total).putString("log", log)
+        s.edit().putString("day", today()).putInt("glasses", total).putString("logg", log)
                 .putInt(dayKey(new Date()), total).apply();
         WearSync.push(c);
     }
@@ -106,35 +139,21 @@ final class Store {
         return true;
     }
 
-    /** Reverses the most recent entry in today's log. Returns false when there is nothing to undo. */
-    static boolean undoLast(Context c) {
-        List<long[]> entries = todayLog(c);
-        if (entries.isEmpty()) return false;
-        long[] last = entries.remove(entries.size() - 1);
-        StringBuilder log = new StringBuilder();
-        for (long[] e : entries) log.append(log.length() == 0 ? "" : ";").append(e[0]).append(':').append(e[1]);
-        int total = Math.max(0, p(c).getInt("ml", 0) - (int) last[1]);
-        p(c).edit().putInt("ml", total).putString("log", log.toString())
-                .putInt(dayKey(new Date()), total).apply();
-        WearSync.push(c);
-        return true;
-    }
-
     static void resetToday(Context c) {
-        p(c).edit().putString("day", today()).putInt("ml", 0).putString("log", "")
+        p(c).edit().putString("day", today()).putInt("glasses", 0).putString("logg", "")
                 .putInt(dayKey(new Date()), 0).apply();
         WearSync.push(c);
     }
 
     private static String dayKey(Date d) {
-        return "d_" + new SimpleDateFormat("yyyyMMdd", Locale.US).format(d);
+        return "dg_" + new SimpleDateFormat("yyyyMMdd", Locale.US).format(d);
     }
 
-    /** Millilitres per day for the current Monday-to-Sunday week; days not yet reached are 0. */
-    static int[] weekMl(Context c) { return weekMl(c, 0); }
+    /** Glasses per day for the current Monday-to-Sunday week; days not yet reached are 0. */
+    static int[] weekGlasses(Context c) { return weekGlasses(c, 0); }
 
-    /** Same as {@link #weekMl(Context)} for an earlier week; 1 is last week. Days with no history are 0. */
-    static int[] weekMl(Context c, int weeksBack) {
+    /** Same as {@link #weekGlasses(Context)} for an earlier week; 1 is last week. Days with no history are 0. */
+    static int[] weekGlasses(Context c, int weeksBack) {
         SharedPreferences s = p(c);
         int[] out = new int[7];
         Calendar cal = Calendar.getInstance();
@@ -145,20 +164,20 @@ final class Store {
             out[i] = s.getInt(dayKey(cal.getTime()), 0);
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
-        if (weeksBack == 0) out[back] = todayMl(c);
+        if (weeksBack == 0) out[back] = todayGlasses(c);
         return out;
     }
 
-    /** Every saved day as ISO date (yyyy-MM-dd) to millilitres, oldest first; today is always included. */
-    static java.util.TreeMap<String, Integer> dailyTotals(Context c) {
-        java.util.TreeMap<String, Integer> out = new java.util.TreeMap<>();
-        for (java.util.Map.Entry<String, ?> e : p(c).getAll().entrySet()) {
+    /** Every saved day as ISO date (yyyy-MM-dd) to glasses, oldest first; today is always included. */
+    static TreeMap<String, Integer> dailyTotals(Context c) {
+        TreeMap<String, Integer> out = new TreeMap<>();
+        for (Map.Entry<String, ?> e : p(c).getAll().entrySet()) {
             String k = e.getKey();
-            if (k.startsWith("d_") && k.length() == 10 && e.getValue() instanceof Integer) {
-                out.put(k.substring(2, 6) + "-" + k.substring(6, 8) + "-" + k.substring(8, 10), (Integer) e.getValue());
+            if (k.startsWith("dg_") && k.length() == 11 && e.getValue() instanceof Integer) {
+                out.put(k.substring(3, 7) + "-" + k.substring(7, 9) + "-" + k.substring(9, 11), (Integer) e.getValue());
             }
         }
-        out.put(new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()), todayMl(c));
+        out.put(new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()), todayGlasses(c));
         return out;
     }
 
@@ -167,10 +186,9 @@ final class Store {
      * streak is what ran up to yesterday, so it only breaks when a full day is missed.
      */
     static int streakDays(Context c) {
-        int goal = goalMl(c);
-        if (goal <= 0) return 0;
+        int goal = goalGlasses(c);
         SharedPreferences s = p(c);
-        int streak = todayMl(c) >= goal ? 1 : 0;
+        int streak = todayGlasses(c) >= goal ? 1 : 0;
         Calendar cal = Calendar.getInstance();
         for (int i = 0; i < 365; i++) {
             cal.add(Calendar.DAY_OF_YEAR, -1);
@@ -185,11 +203,11 @@ final class Store {
         return (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7;
     }
 
-    /** Today's drinks, oldest first: each entry is {epochMs, ml}. */
+    /** Today's changes, oldest first: each entry is {epochMs, glasses}, positive when added. */
     static List<long[]> todayLog(Context c) {
         SharedPreferences s = p(c);
         List<long[]> out = new ArrayList<>();
-        String log = today().equals(s.getString("day", "")) ? s.getString("log", "") : "";
+        String log = today().equals(s.getString("day", "")) ? s.getString("logg", "") : "";
         if (log.isEmpty()) return out;
         for (String e : log.split(";")) {
             String[] parts = e.split(":");
@@ -197,8 +215,4 @@ final class Store {
         }
         return out;
     }
-
-    static int goalMl(Context c) { return goalGlasses(c) * glassMl(c); }
-
-    static int glassesDrunk(Context c) { return todayMl(c) / glassMl(c); }
 }

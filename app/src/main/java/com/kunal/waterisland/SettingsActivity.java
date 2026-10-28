@@ -32,11 +32,9 @@ import java.util.function.BooleanSupplier;
 public class SettingsActivity extends Activity {
     private static final int GRAY = 0xFF9AA5B1;
     private static final int LINE = 0x1AFFFFFF;
-    private static final int[] GLASS_SIZES = {250, 333, 500};
 
     private LinearLayout list;
     private TextView remindersValue;
-    private TextView glassValue;
     private TextView goalValue;
     private TextView intervalValue;
     private TextView soundValue;
@@ -156,13 +154,7 @@ public class SettingsActivity extends Activity {
         });
 
         section("Water");
-        glassValue = row("Glass size", () -> {
-            int cur = Store.glassMl(this);
-            int next = GLASS_SIZES[0];
-            for (int i = 0; i < GLASS_SIZES.length; i++) if (GLASS_SIZES[i] == cur) next = GLASS_SIZES[(i + 1) % GLASS_SIZES.length];
-            Store.setGlassMl(this, next);
-            refresh();
-        });
+        row("One glass", null).setText("1/3 litre");
 
         LinearLayout goalRow = new LinearLayout(this);
         goalRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -262,7 +254,6 @@ public class SettingsActivity extends Activity {
         soundValue.setText(Store.sound(this) ? "On" : "Off");
         watchValue.setText(Store.watchReminders(this) ? "On" : "Off");
         styleValue.setText(Store.islandStyle(this) ? "Island" : "Normal notification");
-        glassValue.setText(Store.glassMl(this) + " ml");
         goalValue.setText(Store.goalGlasses(this) + " glasses");
         for (Runnable r : permRefreshers) r.run();
     }

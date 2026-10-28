@@ -48,7 +48,8 @@ final class WatchData {
         return out;
     }
 
-    static int pendingMl(Context c) {
+    /** Glasses added or removed on the watch that the phone has not confirmed yet. */
+    static int pendingGlasses(Context c) {
         int sum = 0;
         for (String e : pendingEntries(c)) {
             String[] p = e.split("\\|");
@@ -57,8 +58,8 @@ final class WatchData {
         return sum;
     }
 
-    /** Today's millilitres as the watch should show them: the phone's count plus unconfirmed drinks. */
-    static int totalMl(Context c) { return get(c, "todayMl", 0) + pendingMl(c); }
+    /** Today's glasses as the watch should show them: the phone's count plus unconfirmed changes. */
+    static int totalGlasses(Context c) { return Math.max(0, get(c, "glasses", 0) + pendingGlasses(c)); }
 
     static void saveState(Context c, DataMap m) {
         List<String> applied = m.getStringArrayList("applied");
@@ -73,11 +74,9 @@ final class WatchData {
         }
         ArrayList<Integer> week = m.getIntegerArrayList("week");
         StringBuilder w = new StringBuilder();
-        if (week != null) for (int ml : week) w.append(w.length() == 0 ? "" : ",").append(ml);
+        if (week != null) for (int glasses : week) w.append(w.length() == 0 ? "" : ",").append(glasses);
         prefs(c).edit()
-                .putInt("todayMl", m.getInt("todayMl"))
-                .putInt("goalMl", m.getInt("goalMl", 3330))
-                .putInt("glassMl", m.getInt("glassMl", 333))
+                .putInt("glasses", m.getInt("glasses"))
                 .putInt("goalGlasses", m.getInt("goalGlasses", 10))
                 .putInt("streak", m.getInt("streak"))
                 .putInt("todayIdx", m.getInt("todayIdx"))
@@ -87,15 +86,15 @@ final class WatchData {
         requestRefresh(c);
     }
 
-    /** Records a drink locally and sends it to the phone, which stays the master copy. */
-    static void addDrink(Context c, int ml) {
+    /** Records +1 or -1 glass locally and sends it to the phone, which stays the master copy. */
+    static void addDrink(Context c, int delta) {
         String id = UUID.randomUUID().toString();
         List<String> pending = pendingEntries(c);
-        pending.add(id + "|" + ml + "|" + System.currentTimeMillis());
+        pending.add(id + "|" + delta + "|" + System.currentTimeMillis());
         prefs(c).edit().putString("pending", String.join(";", pending)).apply();
 
         PutDataMapRequest req = PutDataMapRequest.create("/add/" + id);
-        req.getDataMap().putInt("delta", ml);
+        req.getDataMap().putInt("delta", delta);
         Wearable.getDataClient(c).putDataItem(req.asPutDataRequest().setUrgent());
         requestRefresh(c);
     }

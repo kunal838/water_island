@@ -41,12 +41,12 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Watch app, three swipe pages: today's ring, this week's bars, and quick add.
+ * Watch app, three swipe pages: today's water (3 glasses = 1 litre), this week's bars, and +1 / -1 glass.
  * The phone is the master copy: this app reads "/state" from it and sends "/add/<id>" commands back.
  */
 public class WatchActivity extends Activity implements DataClient.OnDataChangedListener {
     private static final int GRAY = 0xFF9AA5B1;
-    private static final int[] AMOUNTS = {250, 333, 500};
+    private static final String TITLE = "Change today";
     private static final long PENDING_MAX_AGE_MS = 2L * 24 * 60 * 60 * 1000;
 
     private SharedPreferences prefs;
@@ -56,7 +56,6 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     private WeekView weekView;
     private DotsView dots;
     private TextView addTitle;
-    private LinearLayout pills;
 
     private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
 
@@ -65,8 +64,6 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     private int stateInt(String key, int def) { return WatchData.get(this, key, def); }
 
     private int[] stateWeek() { return WatchData.week(this); }
-
-    private int pendingMl() { return WatchData.pendingMl(this); }
 
     private void saveState(DataMap m) { WatchData.saveState(this, m); }
 
@@ -96,11 +93,11 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         runOnUiThread(this::refresh);
     }
 
-    private void sendAdd(int ml) {
-        WatchData.addDrink(this, ml);
+    private void sendChange(int delta) {
+        WatchData.addDrink(this, delta);
 
-        addTitle.setText("Added +" + ml);
-        addTitle.postDelayed(() -> addTitle.setText("Add water"), 1500);
+        addTitle.setText(delta > 0 ? "Added 1 glass" : "Removed 1 glass");
+        addTitle.postDelayed(() -> addTitle.setText(TITLE), 1500);
         refresh();
     }
 
@@ -402,12 +399,11 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
 
         LinearLayout strip = new LinearLayout(this);
         todayView = new TodayView(this);
-        // Tapping the water adds one glass of your usual size.
+        // Tapping the water adds one glass.
         todayView.setOnClickListener(v -> {
-            int glassMl = Math.max(1, stateInt("glassMl", 333));
-            WatchData.addDrink(this, glassMl);
+            WatchData.addDrink(this, 1);
             v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
-            todayView.flash("+" + glassMl);
+            todayView.flash("+1 glass");
             refresh();
         });
         weekView = new WeekView(this);
@@ -443,51 +439,51 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         page.setGravity(Gravity.CENTER);
 
         addTitle = new TextView(this);
-        addTitle.setText("Add water");
+        addTitle.setText(TITLE);
         addTitle.setTextColor(GRAY);
         addTitle.setTextSize(15);
         addTitle.setGravity(Gravity.CENTER);
         page.addView(addTitle, new LinearLayout.LayoutParams(-2, -2));
 
-        pills = new LinearLayout(this);
-        pills.setOrientation(LinearLayout.VERTICAL);
-        pills.setGravity(Gravity.CENTER);
-        page.addView(pills, new LinearLayout.LayoutParams(-2, -2));
+        // The only two controls: add one glass, take one glass off.
+        page.addView(changeButton("+ 1 glass", 1, true), buttonParams());
+        page.addView(changeButton("− 1 glass", -1, false), buttonParams());
         return page;
     }
 
-    private void refresh() {
-        int glassMl = Math.max(1, stateInt("glassMl", 333));
-        int goalMl = Math.max(1, stateInt("goalMl", 3330));
-        int total = stateInt("todayMl", 0) + pendingMl();
+    private LinearLayout.LayoutParams buttonParams() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) dp(130), (int) dp(46));
+        lp.topMargin = (int) dp(8);
+        return lp;
+    }
 
-        todayView.set((float) total / goalMl, Math.round((float) total / glassMl), stateInt("goalGlasses", 10));
+    private TextView changeButton(String label, int delta, boolean primary) {
+        TextView button = new TextView(this);
+        button.setText(label);
+        button.setTextSize(16);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setTextColor(primary ? Color.BLACK : Color.WHITE);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(primary ? Color.WHITE : 0x1FFFFFFF);
+        bg.setCornerRadius(dp(23));
+        button.setBackground(bg);
+        button.setOnClickListener(v -> sendChange(delta));
+        return button;
+    }
+
+    private void refresh() {
+        int goal = Math.max(1, stateInt("goalGlasses", 10));
+        int total = WatchData.totalGlasses(this);
+
+        todayView.set((float) total / goal, total, goal);
 
         int[] week = stateWeek();
         int todayIdx = stateInt("todayIdx", 0);
         week[todayIdx] = total;
         float[] glasses = new float[7];
-        for (int i = 0; i < 7; i++) glasses[i] = (float) week[i] / glassMl;
-        weekView.set(glasses, todayIdx, stateInt("goalGlasses", 10));
-
-        pills.removeAllViews();
-        for (int amount : AMOUNTS) {
-            boolean preferred = amount == glassMl;
-            TextView pill = new TextView(this);
-            pill.setText(amount + " ml");
-            pill.setTextSize(15);
-            pill.setTypeface(Typeface.DEFAULT_BOLD);
-            pill.setGravity(Gravity.CENTER);
-            pill.setTextColor(preferred ? Color.BLACK : Color.WHITE);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(preferred ? Color.WHITE : 0x1FFFFFFF);
-            bg.setCornerRadius(dp(18));
-            pill.setBackground(bg);
-            pill.setOnClickListener(v -> sendAdd(amount));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) dp(110), (int) dp(38));
-            lp.topMargin = (int) dp(6);
-            pills.addView(pill, lp);
-        }
+        for (int i = 0; i < 7; i++) glasses[i] = week[i];
+        weekView.set(glasses, todayIdx, goal);
     }
 
     @Override

@@ -1,10 +1,6 @@
 package com.kunal.waterisland;
 
 import android.app.Activity;
-import android.app.Dialog;
-import android.graphics.drawable.ColorDrawable;
-import android.view.ViewGroup;
-import android.view.Window;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
@@ -28,17 +24,20 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/** Minimal mono main page: litres today, quick-add chips, weekly graphs and today's log. Settings are separate. */
+/**
+ * Minimal mono main page: glasses today (3 glasses = 1 litre), the +1 / -1 glass buttons, weekly graphs and
+ * today's log. Settings are separate.
+ */
 public class MainActivity extends Activity {
     private static final int GRAY = 0xFF9AA5B1;
     private static final int LINE = 0x1AFFFFFF;
-    private static final int[] GLASS_SIZES = {250, 333, 500};
 
     private LinearLayout page;
-    private LinearLayout chips;
+    private LinearLayout buttons;
     private LinearLayout logBox;
     private TextView dayLabel;
     private TextView bigNumber;
+    private TextView bigUnit;
     private TextView sub;
     private View barFill;
     private static final String[] DAY_NAMES = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
@@ -234,16 +233,12 @@ public class MainActivity extends Activity {
 
         LinearLayout bigRow = new LinearLayout(this);
         bigRow.setGravity(Gravity.BOTTOM);
-        bigNumber = text("0.0", 64, Color.WHITE, false);
+        bigNumber = text("0", 64, Color.WHITE, false);
         bigNumber.setIncludeFontPadding(false);
         bigRow.addView(bigNumber);
-        TextView unit = text(" L", 20, GRAY, false);
-        unit.setPadding(0, 0, 0, dp(10));
-        bigRow.addView(unit);
-        TextView editHint = text("   Tap to edit", 12, 0xFF6B7682, false);
-        editHint.setPadding(0, 0, 0, dp(12));
-        bigRow.addView(editHint);
-        bigRow.setOnClickListener(v -> showEditSheet());
+        bigUnit = text(" glasses", 20, GRAY, false);
+        bigUnit.setPadding(0, 0, 0, dp(10));
+        bigRow.addView(bigUnit);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
         bp.topMargin = dp(8);
         page.addView(bigRow, bp);
@@ -260,10 +255,25 @@ public class MainActivity extends Activity {
         bar.addView(barFill, new LinearLayout.LayoutParams(0, -1, 0f));
         page.addView(bar, new LinearLayout.LayoutParams(-1, dp(4)));
 
-        chips = new LinearLayout(this);
+        // The only controls for the count: remove one glass, add one glass.
+        buttons = new LinearLayout(this);
+        TextView minus = text("− 1 glass", 16, Color.WHITE, true);
+        minus.setGravity(Gravity.CENTER);
+        minus.setBackground(round(0x1AFFFFFF, 14));
+        minus.setOnClickListener(v -> change(-1));
+        TextView plus = text("+ 1 glass", 16, Color.BLACK, true);
+        plus.setGravity(Gravity.CENTER);
+        plus.setBackground(round(Color.WHITE, 14));
+        plus.setOnClickListener(v -> change(1));
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(56), 1f);
+        mp.rightMargin = dp(6);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(0, dp(56), 1f);
+        pp.leftMargin = dp(6);
+        buttons.addView(minus, mp);
+        buttons.addView(plus, pp);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
         cp.topMargin = dp(20);
-        page.addView(chips, cp);
+        page.addView(buttons, cp);
 
         LinearLayout weekCard = card("This week", text("Mon to Sun", 12, GRAY, false));
         LinearLayout statRow = new LinearLayout(this);
@@ -334,94 +344,9 @@ public class MainActivity extends Activity {
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener prefListener =
             (prefs, key) -> runOnUiThread(this::refresh);
 
-    /** Bottom sheet: custom amount in 50 ml steps with Add, Remove and Undo last drink. */
-    private void showEditSheet() {
-        Dialog dlg = new Dialog(this);
-        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        LinearLayout sheet = new LinearLayout(this);
-        sheet.setOrientation(LinearLayout.VERTICAL);
-        sheet.setPadding(dp(20), dp(12), dp(20), dp(28));
-        float r = dp(22);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFF1B1B1D);
-        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
-        sheet.setBackground(bg);
-
-        View grab = new View(this);
-        grab.setBackground(round(0x40FFFFFF, 2));
-        LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(dp(36), dp(4));
-        gp.gravity = Gravity.CENTER_HORIZONTAL;
-        sheet.addView(grab, gp);
-
-        TextView title = text("Custom amount", 13, GRAY, false);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, dp(16), 0, dp(8));
-        sheet.addView(title, new LinearLayout.LayoutParams(-1, -2));
-
-        final int[] amount = {Math.max(50, Math.round(Store.glassMl(this) / 50f) * 50)};
-        TextView amountView = text(amount[0] + " ml", 28, Color.WHITE, true);
-        amountView.setGravity(Gravity.CENTER);
-
-        TextView minus = text("−", 24, Color.WHITE, false);
-        TextView plus = text("+", 24, Color.WHITE, false);
-        for (TextView t : new TextView[]{minus, plus}) {
-            t.setGravity(Gravity.CENTER);
-            t.setBackground(round(0x1AFFFFFF, 24));
-        }
-        minus.setOnClickListener(v -> {
-            amount[0] = Math.max(50, amount[0] - 50);
-            amountView.setText(amount[0] + " ml");
-        });
-        plus.setOnClickListener(v -> {
-            amount[0] = Math.min(2000, amount[0] + 50);
-            amountView.setText(amount[0] + " ml");
-        });
-
-        LinearLayout stepper = new LinearLayout(this);
-        stepper.setGravity(Gravity.CENTER);
-        stepper.addView(minus, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        stepper.addView(amountView, new LinearLayout.LayoutParams(dp(150), -2));
-        stepper.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        sheet.addView(stepper, new LinearLayout.LayoutParams(-1, -2));
-
-        TextView remove = text("Remove", 15, 0xFFFF9A9A, true);
-        remove.setGravity(Gravity.CENTER);
-        remove.setBackground(round(0x26FF6B6B, 14));
-        remove.setOnClickListener(v -> { Store.adjustMl(this, -amount[0]); changed(dlg); });
-        TextView add = text("Add", 15, Color.BLACK, true);
-        add.setGravity(Gravity.CENTER);
-        add.setBackground(round(Color.WHITE, 14));
-        add.setOnClickListener(v -> { Store.adjustMl(this, amount[0]); changed(dlg); });
-        LinearLayout actions = new LinearLayout(this);
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(50), 1f);
-        rp.rightMargin = dp(6);
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(0, dp(50), 1f);
-        ap.leftMargin = dp(6);
-        actions.addView(remove, rp);
-        actions.addView(add, ap);
-        LinearLayout.LayoutParams actp = new LinearLayout.LayoutParams(-1, -2);
-        actp.topMargin = dp(18);
-        sheet.addView(actions, actp);
-
-        boolean canUndo = !Store.todayLog(this).isEmpty();
-        TextView undo = text(canUndo ? "Undo last drink" : "Nothing to undo", 14,
-                canUndo ? Color.WHITE : 0xFF6B7682, false);
-        undo.setGravity(Gravity.CENTER);
-        undo.setPadding(0, dp(18), 0, dp(4));
-        if (canUndo) undo.setOnClickListener(v -> { Store.undoLast(this); changed(dlg); });
-        sheet.addView(undo, new LinearLayout.LayoutParams(-1, -2));
-
-        dlg.setContentView(sheet);
-        Window w = dlg.getWindow();
-        w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        w.setGravity(Gravity.BOTTOM);
-        dlg.show();
-    }
-
-    private void changed(Dialog dlg) {
-        dlg.dismiss();
+    /** Adds or removes one glass, then updates the island card and this page. */
+    private void change(int delta) {
+        Store.addGlasses(this, delta);
         notifyIsland();
         refresh();
     }
@@ -433,54 +358,37 @@ public class MainActivity extends Activity {
     }
 
     private void refresh() {
-        int ml = Store.todayMl(this);
-        int goal = Store.goalMl(this);
+        int drunk = Store.todayGlasses(this);
+        int goal = Store.goalGlasses(this);
         dayLabel.setText(new SimpleDateFormat("EEEE", Locale.getDefault()).format(new Date()));
-        bigNumber.setText(String.format(Locale.US, "%.1f", ml / 1000f));
-        sub.setText(String.format(Locale.US, "of %.1f L  ·  %d of %d glasses", goal / 1000f,
-                Store.glassesDrunk(this), Store.goalGlasses(this)));
+        bigNumber.setText(String.valueOf(drunk));
+        bigUnit.setText(drunk == 1 ? " glass" : " glasses");
+        sub.setText(String.format(Locale.US, "= %.1f L  ·  goal %d glasses (%.1f L)",
+                Store.litres(drunk), goal, Store.litres(goal)));
         LinearLayout.LayoutParams fp = (LinearLayout.LayoutParams) barFill.getLayoutParams();
-        fp.weight = goal == 0 ? 0f : Math.max(0f, Math.min(1f, (float) ml / goal));
+        fp.weight = goal == 0 ? 0f : Math.max(0f, Math.min(1f, (float) drunk / goal));
         barFill.setLayoutParams(fp);
 
-        chips.removeAllViews();
-        int preferred = Store.glassMl(this);
-        for (int amount : GLASS_SIZES) {
-            boolean on = amount == preferred;
-            TextView chip = text(String.valueOf(amount), 15, on ? Color.BLACK : Color.WHITE, true);
-            chip.setGravity(Gravity.CENTER);
-            chip.setBackground(round(on ? Color.WHITE : 0x1AFFFFFF, 14));
-            chip.setOnClickListener(v -> {
-                Store.addMl(this, amount);
-                notifyIsland();
-                refresh();
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), 1f);
-            lp.setMargins(dp(3), 0, dp(3), 0);
-            chips.addView(chip, lp);
-        }
-
-        int[] weekMl = Store.weekMl(this);
+        int[] week = Store.weekGlasses(this);
         int todayIdx = Store.todayIndex();
         float[] glasses = new float[7];
         float sum = 0f;
         int counted = 0;
         for (int i = 0; i < 7; i++) {
-            glasses[i] = (float) weekMl[i] / Store.glassMl(this);
-            if (i <= todayIdx && weekMl[i] > 0) { sum += glasses[i]; counted++; }
+            glasses[i] = week[i];
+            if (i <= todayIdx && week[i] > 0) { sum += glasses[i]; counted++; }
         }
         weekAvg.setText(counted == 0 ? "-" : String.format(Locale.US, "%.1f", sum / counted));
         int best = -1;
-        for (int i = 0; i <= todayIdx; i++) if (weekMl[i] > 0 && (best < 0 || weekMl[i] > weekMl[best])) best = i;
-        weekBest.setText(best < 0 ? "Best day: none yet"
-                : "Best " + DAY_NAMES[best] + " " + Math.round(glasses[best]));
+        for (int i = 0; i <= todayIdx; i++) if (week[i] > 0 && (best < 0 || week[i] > week[best])) best = i;
+        weekBest.setText(best < 0 ? "Best day: none yet" : "Best " + DAY_NAMES[best] + " " + week[best]);
         weekTotal.setText("Total " + Math.round(sum));
 
-        int[] lastMl = Store.weekMl(this, 1);
+        int[] lastWeek = Store.weekGlasses(this, 1);
         float lastSum = 0f;
         int lastCounted = 0;
         for (int i = 0; i < 7; i++) {
-            if (lastMl[i] > 0) { lastSum += (float) lastMl[i] / Store.glassMl(this); lastCounted++; }
+            if (lastWeek[i] > 0) { lastSum += lastWeek[i]; lastCounted++; }
         }
         if (counted == 0 || lastCounted == 0) {
             weekDelta.setText("No last week data yet");
@@ -488,15 +396,15 @@ public class MainActivity extends Activity {
             float diff = sum / counted - lastSum / lastCounted;
             weekDelta.setText(String.format(Locale.US, "vs last week %s%.1f", diff >= 0 ? "+" : "-", Math.abs(diff)));
         }
-        weekBars.set(glasses, todayIdx, Store.goalGlasses(this));
-        weekLine.set(glasses, todayIdx, Store.goalGlasses(this));
+        weekBars.set(glasses, todayIdx, goal);
+        weekLine.set(glasses, todayIdx, goal);
 
         logBox.removeAllViews();
         List<long[]> log = Store.todayLog(this);
         SimpleDateFormat fmt = new SimpleDateFormat("h:mm a", Locale.getDefault());
         if (log.isEmpty()) {
             logBox.addView(divider());
-            TextView none = text("Nothing yet. Tap an amount above.", 14, GRAY, false);
+            TextView none = text("Nothing yet. Tap + 1 glass.", 14, GRAY, false);
             none.setPadding(0, dp(12), 0, dp(12));
             logBox.addView(none);
         }
@@ -505,8 +413,9 @@ public class MainActivity extends Activity {
             LinearLayout r = new LinearLayout(this);
             r.setPadding(0, dp(12), 0, dp(12));
             r.addView(text(fmt.format(new Date(log.get(i)[0])), 14, GRAY, false), new LinearLayout.LayoutParams(0, -2, 1f));
-            long amount = log.get(i)[1];
-            r.addView(text((amount >= 0 ? "+" : "−") + Math.abs(amount), 14, GRAY, false));
+            long change = log.get(i)[1];
+            r.addView(text((change >= 0 ? "+" : "−") + Math.abs(change) + (Math.abs(change) == 1 ? " glass" : " glasses"),
+                    14, GRAY, false));
             logBox.addView(r);
         }
     }

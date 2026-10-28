@@ -54,21 +54,22 @@ final class Exporter {
     // ---- shared rows ---------------------------------------------------------------------
 
     private static List<Object[]> dailyRows(Context c) {
-        int glass = Store.glassMl(c);
-        int goal = Store.goalMl(c);
+        int goal = Store.goalGlasses(c);
         List<Object[]> rows = new ArrayList<>();
-        rows.add(new Object[]{"Date", "Water (ml)", "Glasses", "Goal met"});
+        rows.add(new Object[]{"Date", "Glasses", "Litres", "Goal met"});
         for (Map.Entry<String, Integer> e : Store.dailyTotals(c).entrySet()) {
-            rows.add(new Object[]{e.getKey(), e.getValue(), Math.round(10f * e.getValue() / glass) / 10.0,
-                    e.getValue() >= goal ? "yes" : "no"});
+            rows.add(new Object[]{e.getKey(), e.getValue(), litres(e.getValue()), e.getValue() >= goal ? "yes" : "no"});
         }
         return rows;
     }
 
+    /** Litres rounded to one decimal (3 glasses = 1 litre). */
+    private static double litres(int glasses) { return Math.round(Store.litres(glasses) * 10f) / 10.0; }
+
     private static List<Object[]> todayRows(Context c) {
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
         List<Object[]> rows = new ArrayList<>();
-        rows.add(new Object[]{"Time", "Amount (ml)"});
+        rows.add(new Object[]{"Time", "Change (glasses)"});
         for (long[] e : Store.todayLog(c)) rows.add(new Object[]{fmt.format(new Date(e[0])), (int) e[1]});
         return rows;
     }
@@ -76,9 +77,8 @@ final class Exporter {
     private static List<Object[]> settingsRows(Context c) {
         List<Object[]> rows = new ArrayList<>();
         rows.add(new Object[]{"Setting", "Value"});
-        rows.add(new Object[]{"Glass size (ml)", Store.glassMl(c)});
+        rows.add(new Object[]{"Glasses per litre", Store.GLASSES_PER_LITRE});
         rows.add(new Object[]{"Daily goal (glasses)", Store.goalGlasses(c)});
-        rows.add(new Object[]{"Daily goal (ml)", Store.goalMl(c)});
         rows.add(new Object[]{"Remind every (seconds)", Store.intervalSec(c)});
         rows.add(new Object[]{"Reminder sound", Store.sound(c) ? "on" : "off"});
         return rows;
@@ -101,15 +101,13 @@ final class Exporter {
     // ---- JSON ----------------------------------------------------------------------------
 
     private static String json(Context c) throws JSONException {
-        int glass = Store.glassMl(c);
-        int goal = Store.goalMl(c);
+        int goal = Store.goalGlasses(c);
         JSONObject root = new JSONObject();
         root.put("exportedAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US).format(new Date()));
 
         JSONObject settings = new JSONObject();
-        settings.put("glassMl", glass);
-        settings.put("goalGlasses", Store.goalGlasses(c));
-        settings.put("goalMl", goal);
+        settings.put("glassesPerLitre", Store.GLASSES_PER_LITRE);
+        settings.put("goalGlasses", goal);
         settings.put("remindEverySeconds", Store.intervalSec(c));
         settings.put("reminderSound", Store.sound(c));
         root.put("settings", settings);
@@ -118,8 +116,8 @@ final class Exporter {
         for (Map.Entry<String, Integer> e : Store.dailyTotals(c).entrySet()) {
             JSONObject d = new JSONObject();
             d.put("date", e.getKey());
-            d.put("ml", e.getValue());
-            d.put("glasses", Math.round(10f * e.getValue() / glass) / 10.0);
+            d.put("glasses", e.getValue());
+            d.put("litres", litres(e.getValue()));
             d.put("goalMet", e.getValue() >= goal);
             days.put(d);
         }
@@ -130,7 +128,7 @@ final class Exporter {
         for (long[] e : Store.todayLog(c)) {
             JSONObject entry = new JSONObject();
             entry.put("time", fmt.format(new Date(e[0])));
-            entry.put("ml", e[1]);
+            entry.put("glasses", e[1]);
             log.put(entry);
         }
         root.put("todayLog", log);
