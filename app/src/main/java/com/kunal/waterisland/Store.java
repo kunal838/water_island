@@ -96,9 +96,7 @@ final class Store {
     static void setWatchReminders(Context c, boolean on) { p(c).edit().putBoolean("watchReminders", on).apply(); }
 
     /** Look of the watch's Today page. The order matches the watch app's drawing code. */
-    static final String[] WATCH_STYLES = {
-            "Triple arcs", "Cookie fill", "Wavy ring", "Squircle liquid", "Gauge and pills", "Bloom",
-            "Rising water", "Ring and drop", "Big glass", "Aquarium", "Growing plant", "Orbit"};
+    static final String[] WATCH_STYLES = com.kunal.waterisland.wear.TodayView.NAMES;
     static final int DEFAULT_WATCH_STYLE = 6;
 
     static int watchStyle(Context c) {

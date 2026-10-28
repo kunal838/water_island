@@ -20,7 +20,8 @@ import android.view.animation.OvershootInterpolator;
 public final class TodayView extends View {
     public static final String[] NAMES = {
             "Triple arcs", "Cookie fill", "Wavy ring", "Squircle liquid", "Gauge and pills", "Bloom",
-            "Rising water", "Ring and drop", "Big glass", "Aquarium", "Growing plant", "Orbit"};
+            "Rising water", "Ring and drop", "Big glass", "Aquarium", "Growing plant", "Orbit",
+            "Now Bar", "Card stack", "Soft arc", "Color orbs", "Round add", "Water capsule"};
     public static final int WATER = 6;
     private static final int DEMO_GOAL = 8;
     private static final long DEMO_STEP_MS = 800;
@@ -52,6 +53,7 @@ public final class TodayView extends View {
     private final Path squircle = new Path();
     private final Path dropShape = new Path();
     private final Path glassShape = new Path();
+    private final Path capsule = new Path();
     private final RectF oval = new RectF();
     private final java.util.Random random = new java.util.Random();
     private final float[] bx = new float[BUBBLES];
@@ -130,6 +132,7 @@ public final class TodayView extends View {
         glassShape.lineTo(77, 176);
         glassShape.quadTo(69, 176, 68, 168);
         glassShape.close();
+        capsule.addRoundRect(new RectF(48, 28, 100, 172), 26, 26, Path.Direction.CW);
     }
 
     public void setStyle(int style) {
@@ -217,10 +220,11 @@ public final class TodayView extends View {
 
     /** +1 normally; -1 when the "Gauge and pills" style is showing and the minus pill is tapped. */
     public int tapDelta(float x, float y) {
-        if (style != 4) return 1;
+        if (style != 4 && style != 16) return 1;
         float u = Math.min(getWidth(), getHeight()) / 200f;
         float gx = (x - (getWidth() - 200 * u) / 2f) / u, gy = (y - (getHeight() - 200 * u) / 2f) / u;
-        return gy >= 132 && gx < 96 ? -1 : 1;
+        if (style == 4) return gy >= 132 && gx < 96 ? -1 : 1;
+        return gy >= 130 && gx < 70 ? -1 : 1;   // the small minus circle of "Round add"
     }
 
     /** Shows a short message in place of the hint and plays the splash (water style). */
@@ -274,7 +278,13 @@ public final class TodayView extends View {
             case 8: drawBigGlass(c, lit, bump); break;
             case 9: drawAquarium(c); break;
             case 10: drawPlant(c, f, lit); break;
-            default: drawOrbit(c, lit, bump); break;
+            case 11: drawOrbit(c, lit, bump); break;
+            case 12: drawNowBar(c, f, bump); break;
+            case 13: drawCards(c, f); break;
+            case 14: drawSoftArc(c, f, bump); break;
+            case 15: drawColorOrbs(c, f, bump); break;
+            case 16: drawRoundAdd(c, f, bump); break;
+            default: drawCapsule(c, f, bump); break;
         }
         c.restore();
     }
@@ -290,7 +300,12 @@ public final class TodayView extends View {
     }
 
     private void ring(Canvas c, float r, float width, int track, int color, float start, float sweep, float f) {
-        oval.set(100 - r, 100 - r, 100 + r, 100 + r);
+        ringAt(c, 100, r, width, track, color, start, sweep, f);
+    }
+
+    private void ringAt(Canvas c, float cy, float r, float width, int track, int color, float start, float sweep,
+            float f) {
+        oval.set(100 - r, cy - r, 100 + r, cy + r);
         stroke.setStrokeWidth(width);
         stroke.setColor(track);
         c.drawArc(oval, start, sweep, false, stroke);
@@ -560,6 +575,184 @@ public final class TodayView extends View {
         c.restore();
         ripple(c, WATER_BLUE);
         label(c, String.valueOf(glasses), 100, 116, 44, Color.WHITE, bump, true);
+    }
+
+    // ---- One UI 8 Watch look: black, big rounded cards, pill chips, soft pastel colours ----
+
+    private static final int ONE_BLUE = 0xFF4DA3FF;
+    private static final int ONE_MINT = 0xFF6FE3C1;
+    private static final int ONE_LILAC = 0xFFB8A4FF;
+    private static final int ONE_CARD = 0xFF1C1D21;
+    private static final int ONE_TRACK = 0xFF1D2531;
+
+    private void labelAt(Canvas c, String s, float x, float y, float size, int color, Paint.Align align,
+            boolean medium) {
+        text.setTextAlign(align);
+        label(c, s, x, y, size, color, 1f, medium);
+        text.setTextAlign(Paint.Align.CENTER);
+    }
+
+    /** Scale for a button that is pressed in and springs back, over pulse 0 to 1. */
+    private float press() {
+        if (pulse >= 1f) return 1f;
+        if (pulse < 0.3f) return 1f - 0.1f * (pulse / 0.3f);
+        if (pulse < 0.7f) return 0.9f + 0.18f * ((pulse - 0.3f) / 0.4f);
+        return 1.08f - 0.08f * ((pulse - 0.7f) / 0.3f);
+    }
+
+    /** The count, with a Now Bar style pill below: drop, progress bar and the fraction. */
+    private void drawNowBar(Canvas c, float f, float bump) {
+        label(c, String.valueOf(glasses), 100, 96, 64, Color.WHITE, bump, true);
+        label(c, "glasses today", 100, 122, 14, GRAY, 1f, false);
+        float beat = (elapsed % 2.4f) / 2.4f;
+        c.save();
+        c.scale(1f + 0.18f * beat, 1f + 0.35f * beat, 100, 159);
+        fill.setColor(ONE_BLUE);
+        fill.setAlpha((int) (110 * (1f - beat)));
+        oval.set(35, 140, 165, 178);
+        c.drawRoundRect(oval, 19, 19, fill);
+        c.restore();
+        c.save();
+        float p = press();
+        c.scale(p, p, 100, 159);
+        fill.setColor(ONE_CARD);
+        c.drawRoundRect(oval, 19, 19, fill);
+        c.save();
+        c.translate(56, 159);
+        c.scale(0.18f, 0.18f);
+        c.translate(-100, -87);
+        fill.setColor(ONE_BLUE);
+        c.drawPath(dropShape, fill);
+        c.restore();
+        fill.setColor(0xFF33363C);
+        oval.set(72, 156, 124, 164);
+        c.drawRoundRect(oval, 4, 4, fill);
+        if (f > 0.01f) {
+            fill.setColor(ONE_BLUE);
+            oval.set(72, 156, 72 + 52 * f, 164);
+            c.drawRoundRect(oval, 4, 4, fill);
+        }
+        label(c, glasses + "/" + goal, 146, 164, 13, Color.WHITE, 1f, true);
+        c.restore();
+    }
+
+    /** Large rounded cards stacked like One UI cards: today's water, the goal, and the next card peeking. */
+    private void drawCards(Canvas c, float f) {
+        float s1 = pulse >= 1f ? 0f : -5f * (float) Math.sin(Math.PI * pulse);
+        float p2 = Math.max(0f, Math.min(1f, (pulse - 0.1f) / 0.9f));
+        float s2 = pulse >= 1f ? 0f : -5f * (float) Math.sin(Math.PI * p2);
+        c.save();
+        c.translate(0, s1);
+        fill.setColor(ONE_CARD);
+        oval.set(22, 22, 178, 106);
+        c.drawRoundRect(oval, 26, 26, fill);
+        labelAt(c, "Water", 42, 50, 13, GRAY, Paint.Align.LEFT, false);
+        text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        text.setTextSize(34);
+        float nw = text.measureText(String.valueOf(glasses));
+        labelAt(c, String.valueOf(glasses), 42, 86, 34, Color.WHITE, Paint.Align.LEFT, true);
+        labelAt(c, glasses == 1 ? "glass" : "glasses", 42 + nw + 6, 86, 13, GRAY, Paint.Align.LEFT, false);
+        fill.setColor(0xFF33363C);
+        oval.set(42, 94, 158, 100);
+        c.drawRoundRect(oval, 3, 3, fill);
+        if (f > 0.01f) {
+            fill.setColor(ONE_MINT);
+            oval.set(42, 94, 42 + 116 * f, 100);
+            c.drawRoundRect(oval, 3, 3, fill);
+        }
+        c.restore();
+        c.save();
+        c.translate(0, s2);
+        fill.setColor(ONE_CARD);
+        oval.set(22, 114, 178, 160);
+        c.drawRoundRect(oval, 22, 22, fill);
+        labelAt(c, "Goal", 42, 142, 13, Color.WHITE, Paint.Align.LEFT, false);
+        labelAt(c, goal + " glasses", 158, 142, 13, ONE_LILAC, Paint.Align.RIGHT, true);
+        c.restore();
+        fill.setColor(0xFF17181B);
+        oval.set(22, 168, 178, 214);
+        c.drawRoundRect(oval, 22, 22, fill);
+    }
+
+    /** A thick open arc with a white knob, and a goal chip in the gap at the bottom. */
+    private void drawSoftArc(Canvas c, float f, float bump) {
+        ring(c, 76, 15, ONE_TRACK, ONE_BLUE, 135, 270, f);
+        if (f > 0.004f) {
+            double a = Math.toRadians(135 + 270 * Math.min(1f, f));
+            fill.setColor(Color.WHITE);
+            c.drawCircle((float) (100 + 76 * Math.cos(a)), (float) (100 + 76 * Math.sin(a)), 9, fill);
+        }
+        label(c, String.valueOf(glasses), 100, 112, 52, Color.WHITE, bump, true);
+        label(c, glasses == 1 ? "glass" : "glasses", 100, 134, 13, GRAY, 1f, false);
+        fill.setColor(ONE_CARD);
+        oval.set(68, 150, 132, 176);
+        c.drawRoundRect(oval, 13, 13, fill);
+        label(c, "Goal " + goal, 100, 168, 13, ONE_MINT, 1f, true);
+    }
+
+    /** Soft pastel orbs drifting behind the count; they grow as you drink. */
+    private void drawColorOrbs(Canvas c, float f, float bump) {
+        float s = 0.65f + 0.55f * f;
+        c.save();
+        c.scale(s, s, 100, 100);
+        float t = elapsed * 2f * (float) Math.PI;
+        float[][] orb = {{70, 80, 40, 7, 18, -14}, {130, 84, 36, 8, -20, 12}, {100, 132, 42, 9, 14, 18}, {66, 128, 30, 6, -16, -16}};
+        int[] color = {0x734DA3FF, 0x666FE3C1, 0x66B8A4FF, 0x59FF8FB1};
+        for (int i = 0; i < orb.length; i++) {
+            float k = (float) Math.sin(t / orb[i][3] + i);
+            fill.setColor(color[i]);
+            c.drawCircle(orb[i][0] + orb[i][4] * k, orb[i][1] + orb[i][5] * k, orb[i][2], fill);
+        }
+        c.restore();
+        label(c, String.valueOf(glasses), 100, 114, 56, Color.WHITE, bump, true);
+        label(c, "of " + goal + " glasses", 100, 138, 13, 0xCCFFFFFF, 1f, false);
+    }
+
+    /** A big round add button inside a progress ring, with a small round minus beside it. */
+    private void drawRoundAdd(Canvas c, float f, float bump) {
+        label(c, String.valueOf(glasses), 100, 56, 42, Color.WHITE, bump, true);
+        label(c, "of " + goal, 100, 74, 12, GRAY, 1f, false);
+        ringAt(c, 128, 46, 7, ONE_TRACK, ONE_BLUE, -90, 360, f);
+        float p = press();
+        c.save();
+        c.scale(p, p, 100, 128);
+        fill.setColor(ONE_BLUE);
+        c.drawCircle(100, 128, 38, fill);
+        fill.setColor(Color.BLACK);
+        oval.set(90, 126, 110, 130);
+        c.drawRoundRect(oval, 2, 2, fill);
+        oval.set(98, 118, 102, 138);
+        c.drawRoundRect(oval, 2, 2, fill);
+        c.restore();
+        fill.setColor(0xFF2A2D33);
+        c.drawCircle(42, 152, 16, fill);
+        fill.setColor(Color.WHITE);
+        oval.set(35, 151, 49, 154);
+        c.drawRoundRect(oval, 1.5f, 1.5f, fill);
+    }
+
+    /** A tall capsule filling with moving water, with the count beside it. */
+    private void drawCapsule(Canvas c, float f, float bump) {
+        fill.setColor(0xFF14202E);
+        c.drawPath(capsule, fill);
+        float level = 172 - f * 140;
+        c.save();
+        c.clipPath(capsule);
+        work.reset();
+        work.moveTo(40, 180);
+        for (int x = 40; x <= 110; x += 5) {
+            work.lineTo(x, level + 3.5f * (float) Math.sin(x / 50f * 2 * Math.PI + elapsed * 3f));
+        }
+        work.lineTo(110, 180);
+        work.close();
+        fill.setColor(ONE_BLUE);
+        c.drawPath(work, fill);
+        c.restore();
+        stroke.setStrokeWidth(2);
+        stroke.setColor(0xFF5B6672);
+        c.drawPath(capsule, stroke);
+        label(c, String.valueOf(glasses), 150, 108, 54, Color.WHITE, bump, true);
+        label(c, "of " + goal, 150, 130, 13, GRAY, 1f, false);
     }
 
     // ---- rising water (the original style, drawn in real pixels) -------------------------
