@@ -14,6 +14,9 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,7 +35,23 @@ public class MainActivity extends Activity {
     private static final int GRAY = 0xFF9AA5B1;
     private static final int LINE = 0x1AFFFFFF;
 
+    // Header sizes in dp, without the status bar height.
+    private static final int HEADER_EXPANDED = 160;
+    private static final int HEADER_COLLAPSED = 62;
+    private static final int COLLAPSE_RANGE = 110;   // scroll distance over which the header collapses
+    private static final int HIDE_BELOW = 120;       // scroll distance past which the status bar hides
+
     private LinearLayout page;
+    private ScrollView sv;
+    private FrameLayout header;
+    private LinearLayout bigRow;
+    private LinearLayout bar;
+    private View spacer;
+    private View headerLine;
+    private TextView quickPlus;
+    private ImageView gear;
+    private int topInset;
+    private boolean barsHidden;
     private LinearLayout buttons;
     private LinearLayout logBox;
     private TextView dayLabel;
@@ -212,14 +231,15 @@ public class MainActivity extends Activity {
         }
         page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(24), dp(28), dp(24), dp(32));
+        page.setPadding(dp(24), 0, dp(24), dp(32));
         page.setBackgroundColor(0xFF111111);
 
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        // Pinned header: the big count shrinks into a slim bar as the page scrolls (see applyScroll).
+        header = new FrameLayout(this);
+        header.setBackgroundColor(0xFF111111);
         dayLabel = text("", 14, GRAY, false);
-        top.addView(dayLabel, new LinearLayout.LayoutParams(0, -2, 1f));
-        ImageView gear = new ImageView(this);
+        header.addView(dayLabel, headerParams(-2, -2, Gravity.TOP | Gravity.START));
+        gear = new ImageView(this);
         gear.setImageResource(R.drawable.ic_settings);
         gear.setContentDescription("Settings");
         gear.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -228,32 +248,47 @@ public class MainActivity extends Activity {
         ring.setColor(0x1AFFFFFF);
         gear.setBackground(ring);
         gear.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        top.addView(gear, new LinearLayout.LayoutParams(dp(38), dp(38)));
-        page.addView(top);
+        header.addView(gear, headerParams(dp(38), dp(38), Gravity.TOP | Gravity.END));
 
-        LinearLayout bigRow = new LinearLayout(this);
+        // Appears once the page has scrolled and the real buttons are out of view.
+        quickPlus = text("+ 1", 15, Color.BLACK, true);
+        quickPlus.setGravity(Gravity.CENTER);
+        quickPlus.setBackground(round(Color.WHITE, 19));
+        quickPlus.setOnClickListener(v -> change(1));
+        FrameLayout.LayoutParams qp = headerParams(dp(56), dp(38), Gravity.TOP | Gravity.END);
+        qp.rightMargin = dp(70);
+        header.addView(quickPlus, qp);
+
+        bigRow = new LinearLayout(this);
         bigRow.setGravity(Gravity.BOTTOM);
         bigNumber = text("0", 64, Color.WHITE, false);
         bigNumber.setIncludeFontPadding(false);
         bigRow.addView(bigNumber);
         bigUnit = text(" glasses", 20, GRAY, false);
-        bigUnit.setPadding(0, 0, 0, dp(10));
+        bigUnit.setPadding(0, 0, 0, dp(2));
         bigRow.addView(bigUnit);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
-        bp.topMargin = dp(8);
-        page.addView(bigRow, bp);
+        header.addView(bigRow, headerParams(-2, -2, Gravity.TOP | Gravity.START));
 
         sub = text("", 14, GRAY, false);
-        sub.setPadding(0, dp(2), 0, dp(14));
-        page.addView(sub);
+        header.addView(sub, headerParams(-2, -2, Gravity.TOP | Gravity.START));
 
-        LinearLayout bar = new LinearLayout(this);
+        bar = new LinearLayout(this);
         bar.setWeightSum(1f);
         bar.setBackground(round(0x26FFFFFF, 2));
         barFill = new View(this);
         barFill.setBackground(round(Color.WHITE, 2));
         bar.addView(barFill, new LinearLayout.LayoutParams(0, -1, 0f));
-        page.addView(bar, new LinearLayout.LayoutParams(-1, dp(4)));
+        FrameLayout.LayoutParams barLp = headerParams(-1, dp(4), Gravity.TOP);
+        barLp.leftMargin = dp(24);
+        barLp.rightMargin = dp(24);
+        header.addView(bar, barLp);
+
+        headerLine = divider();
+        header.addView(headerLine, new FrameLayout.LayoutParams(-1, 1, Gravity.BOTTOM));
+
+        // The page starts with an empty block as tall as the expanded header.
+        spacer = new View(this);
+        page.addView(spacer, new LinearLayout.LayoutParams(-1, dp(HEADER_EXPANDED)));
 
         // The only controls for the count: remove one glass, add one glass.
         buttons = new LinearLayout(this);
@@ -314,14 +349,81 @@ public class MainActivity extends Activity {
         logBox.setOrientation(LinearLayout.VERTICAL);
         page.addView(logBox);
 
-        ScrollView sv = new ScrollView(this);
+        sv = new ScrollView(this);
         sv.setBackgroundColor(0xFF111111);
+        sv.setVerticalScrollBarEnabled(false);
         sv.addView(page);
-        sv.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+        sv.setOnScrollChangeListener((v, x, y, ox, oy) -> applyScroll());
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF111111);
+        root.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(header, new FrameLayout.LayoutParams(-1, dp(HEADER_EXPANDED)));
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            // Hiding the status bar reports a zero top inset; keep the last real one so nothing jumps.
+            int top = insets.getSystemWindowInsetTop();
+            if (top > 0) topInset = top;
+            sv.setPadding(0, 0, 0, insets.getSystemWindowInsetBottom());
+            applyScroll();
             return insets;
         });
-        setContentView(sv);
+        setContentView(root);
+        applyScroll();
+    }
+
+    private FrameLayout.LayoutParams headerParams(int w, int h, int gravity) {
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h, gravity);
+        lp.leftMargin = dp(24);
+        lp.rightMargin = dp(24);
+        return lp;
+    }
+
+    /**
+     * Collapses the header as the page scrolls: the count shrinks and moves up, the date and the goal line
+     * fade out, a quick +1 appears, and the status bar hides (swipe down from the top edge brings it back).
+     */
+    private void applyScroll() {
+        int y = sv.getScrollY();
+        float p = Math.min(1f, y / (float) dp(COLLAPSE_RANGE));
+        float fade = Math.max(0f, 1f - p * 1.6f);
+        int t = topInset;
+        int expanded = t + dp(HEADER_EXPANDED);
+        int collapsed = t + dp(HEADER_COLLAPSED);
+        int h = Math.round(expanded - p * (expanded - collapsed));
+        FrameLayout.LayoutParams hp = (FrameLayout.LayoutParams) header.getLayoutParams();
+        if (hp.height != h) {
+            hp.height = h;
+            header.setLayoutParams(hp);
+        }
+        spacer.getLayoutParams().height = expanded + dp(4);
+        spacer.requestLayout();
+
+        bigNumber.setTextSize(64 - 36 * p);
+        bigUnit.setTextSize(20 - 7 * p);
+        bigRow.setTranslationY(t + dp(40) - p * dp(28));
+        dayLabel.setTranslationY(t + dp(20));
+        dayLabel.setAlpha(fade);
+        sub.setTranslationY(t + dp(118));
+        sub.setAlpha(fade);
+        bar.setTranslationY(h - dp(14) + p * dp(10));
+        headerLine.setAlpha(p > 0.95f ? 1f : 0f);
+        float quick = Math.max(0f, Math.min(1f, (p - 0.5f) * 2f));
+        quickPlus.setAlpha(quick);
+        quickPlus.setEnabled(quick > 0.5f);
+        quickPlus.setTranslationY(t + dp(12));
+        gear.setTranslationY(t + dp(12));
+
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                boolean hide = barsHidden ? y > dp(HIDE_BELOW) - dp(40) : y > dp(HIDE_BELOW);
+                if (hide != barsHidden) {
+                    barsHidden = hide;
+                    if (hide) c.hide(WindowInsets.Type.statusBars()); else c.show(WindowInsets.Type.statusBars());
+                }
+            }
+        }
     }
 
     @Override
