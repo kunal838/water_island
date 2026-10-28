@@ -98,6 +98,13 @@ public class IslandService extends Service {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
+    /** Notification button that adds (+1) or removes (-1) a glass; each delta needs its own request code. */
+    private PendingIntent changeIntent(int requestCode, int delta) {
+        return PendingIntent.getBroadcast(this, requestCode,
+                new Intent(this, AddReceiver.class).putExtra(AddReceiver.EXTRA_DELTA, delta),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
     private void createChannels() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(CH_FG, "Island running",
@@ -142,8 +149,8 @@ public class IslandService extends Service {
         int progress = Math.round(100f * blocks * Math.min(glasses, goalGlasses) / goalGlasses);
         boolean island = Store.islandStyle(this);
 
-        PendingIntent add = PendingIntent.getBroadcast(this, 1, new Intent(this, AddReceiver.class),
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent add = changeIntent(1, 1);
+        PendingIntent remove = changeIntent(2, -1);
         boolean prompt = mode == LIVE_PROMPT;
         if (prompt) WearSync.remind(this, glasses, goalGlasses);
         Notification.Builder b = new Notification.Builder(this, Store.sound(this) ? CH_LIVE : CH_LIVE_QUIET)
@@ -158,6 +165,7 @@ public class IslandService extends Service {
                 .setOngoing(island)
                 .setOnlyAlertOnce(!prompt)
                 .setContentIntent(openApp())
+                .addAction(new Notification.Action.Builder(null, "−1 glass", remove).build())
                 .addAction(new Notification.Action.Builder(null, "+1 glass", add).build());
         if (island) {
             String chip = prompt ? "Drink!" : streak == 0 ? "Start!" : streak + (streak == 1 ? " day" : " days");
