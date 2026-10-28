@@ -66,6 +66,7 @@ public class MainActivity extends Activity {
     private TextView weekDelta;
     private WeekChart weekBars;
     private WeekChart weekLine;
+    private HeatmapView heatmap;
 
     /** Glasses per day for the week: bars with a dashed goal line, or a line through the days so far. */
     private static final class WeekChart extends View {
@@ -194,8 +195,11 @@ public class MainActivity extends Activity {
     private void openDay(int index) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_YEAR, index - Store.todayIndex());
-        startActivity(new Intent(this, HistoryActivity.class)
-                .putExtra(HistoryActivity.EXTRA_DATE, new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime())));
+        openDate(new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime()));
+    }
+
+    private void openDate(String isoDate) {
+        startActivity(new Intent(this, HistoryActivity.class).putExtra(HistoryActivity.EXTRA_DATE, isoDate));
     }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -363,6 +367,17 @@ public class MainActivity extends Activity {
         tcp.topMargin = dp(16);
         page.addView(trendCard, tcp);
 
+        // One green square per day, darker the closer the day came to the goal.
+        LinearLayout activityCard = card("Activity", text("Last 17 weeks", 12, GRAY, false));
+        heatmap = new HeatmapView(this);
+        heatmap.onDay = this::openDate;
+        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(-1, -2);
+        hmp.topMargin = dp(10);
+        activityCard.addView(heatmap, hmp);
+        LinearLayout.LayoutParams acp = new LinearLayout.LayoutParams(-1, -2);
+        acp.topMargin = dp(16);
+        page.addView(activityCard, acp);
+
         // Every day, week, month and year, with the time of each glass.
         LinearLayout historyRow = new LinearLayout(this);
         historyRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -529,6 +544,11 @@ public class MainActivity extends Activity {
         }
         weekBars.set(glasses, todayIdx, goal);
         weekLine.set(glasses, todayIdx, goal);
+
+        Calendar end = Calendar.getInstance();
+        Calendar begin = Calendar.getInstance();
+        begin.add(Calendar.DAY_OF_YEAR, -(todayIdx + 16 * 7));   // the Monday 16 weeks before this week's Monday
+        heatmap.set(begin, end, Store.dailyTotals(this), goal, false, 0f);
 
         logBox.removeAllViews();
         List<long[]> log = Store.todayLog(this);

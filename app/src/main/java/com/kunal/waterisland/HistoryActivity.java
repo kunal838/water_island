@@ -342,6 +342,8 @@ public class HistoryActivity extends Activity {
         cp.topMargin = dp(14);
         content.addView(card, cp);
 
+        if (mode != WEEK) addHeatmap(s, e);
+
         content.addView(title(mode == YEAR ? "Months" : "Days"));
         boolean any = false;
         for (int i = bars - 1; i >= 0; i--) {
@@ -364,6 +366,67 @@ public class HistoryActivity extends Activity {
         }
         if (any) content.addView(divider());
         else content.addView(note("No water recorded in this period."));
+    }
+
+    /** The green-square grid for a month, or for a whole year (wider than the screen, so it scrolls). */
+    private void addHeatmap(Calendar s, Calendar e) {
+        Calendar last = copy(e);
+        last.add(Calendar.DAY_OF_YEAR, -1);
+        HeatmapView map = new HeatmapView(this);
+        map.set(s, last, totals, Store.goalGlasses(this), true, mode == YEAR ? 13f : 0f);
+        map.onDay = date -> {
+            try {
+                cur.setTime(ISO.parse(date));
+            } catch (ParseException ignored) {
+                return;
+            }
+            mode = DAY;
+            render();
+        };
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(4));
+        card.setBackground(round(0xFF1B1B1D, 20));
+        card.addView(text(mode == YEAR ? "Every day of the year" : "Every day of the month", 13, GRAY, false));
+        if (mode == YEAR) {
+            android.widget.HorizontalScrollView scroller = new android.widget.HorizontalScrollView(this);
+            scroller.setHorizontalScrollBarEnabled(false);
+            scroller.addView(map);
+            card.addView(scroller, new LinearLayout.LayoutParams(-1, -2));
+            // Start at today's end of the year.
+            scroller.post(() -> scroller.scrollTo(Math.max(0, todayColumnPx(s)), 0));
+
+            // Less [] [] [] [] [] More, outside the scroller so it stays in view.
+            LinearLayout legend = new LinearLayout(this);
+            legend.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+            legend.setPadding(0, dp(8), 0, dp(10));
+            legend.addView(text("Less", 11, GRAY, false));
+            for (int i = 0; i < 5; i++) {
+                View sq = new View(this);
+                sq.setBackground(round(HeatmapView.levelColor(i), 2));
+                LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(11), dp(11));
+                sp.leftMargin = dp(3);
+                legend.addView(sq, sp);
+            }
+            TextView more = text("More", 11, GRAY, false);
+            more.setPadding(dp(6), 0, 0, 0);
+            legend.addView(more);
+            card.addView(legend, new LinearLayout.LayoutParams(-1, -2));
+        } else {
+            card.addView(map, new LinearLayout.LayoutParams(-1, -2));
+        }
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+        cp.topMargin = dp(14);
+        content.addView(card, cp);
+    }
+
+    /** Pixel position of this week's column in the year grid, minus about half a screen. */
+    private int todayColumnPx(Calendar yearStart) {
+        Calendar now = Calendar.getInstance();
+        if (now.get(Calendar.YEAR) != yearStart.get(Calendar.YEAR)) return 0;
+        float cell = 16f * getResources().getDisplayMetrics().density;
+        int week = (now.get(Calendar.DAY_OF_YEAR) - 1 + ((yearStart.get(Calendar.DAY_OF_WEEK) + 5) % 7)) / 7;
+        return Math.round(week * cell - getResources().getDisplayMetrics().widthPixels * 0.6f);
     }
 
     private static int daysBetween(Calendar a, Calendar b) {
