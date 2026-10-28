@@ -23,6 +23,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -48,7 +49,6 @@ public class MainActivity extends Activity {
     private LinearLayout bar;
     private View spacer;
     private View headerLine;
-    private TextView quickPlus;
     private ImageView gear;
     private int topInset;
     private boolean barsHidden;
@@ -76,11 +76,31 @@ public class MainActivity extends Activity {
         private float[] glasses = new float[7];
         private int today;
         private int goal = 10;
+        /** Called with the day index (Monday = 0) when a day up to today is tapped. */
+        java.util.function.IntConsumer onDay;
 
         WeekChart(Context c, boolean line) {
             super(c);
             this.line = line;
             d = c.getResources().getDisplayMetrics().density;
+            setClickable(true);
+        }
+
+        @Override
+        public boolean performClick() {
+            return super.performClick();
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent e) {
+            if (e.getAction() == android.view.MotionEvent.ACTION_UP && onDay != null) {
+                int index = Math.max(0, Math.min(6, (int) (e.getX() / (getWidth() / 7f))));
+                if (index <= today) {
+                    performClick();
+                    onDay.accept(index);
+                }
+            }
+            return super.onTouchEvent(e);
         }
 
         /** Days up to today with water logged, plus today itself; earlier empty days have no history. */
@@ -170,6 +190,14 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Opens that day of the current week in the history, with its log. */
+    private void openDay(int index) {
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_YEAR, index - Store.todayIndex());
+        startActivity(new Intent(this, HistoryActivity.class)
+                .putExtra(HistoryActivity.EXTRA_DATE, new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime())));
+    }
+
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
     private GradientDrawable round(int color, int radiusDp) {
@@ -250,15 +278,6 @@ public class MainActivity extends Activity {
         gear.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         header.addView(gear, headerParams(dp(38), dp(38), Gravity.TOP | Gravity.END));
 
-        // Appears once the page has scrolled and the real buttons are out of view.
-        quickPlus = text("+ 1", 15, Color.BLACK, true);
-        quickPlus.setGravity(Gravity.CENTER);
-        quickPlus.setBackground(round(Color.WHITE, 19));
-        quickPlus.setOnClickListener(v -> change(1));
-        FrameLayout.LayoutParams qp = headerParams(dp(56), dp(38), Gravity.TOP | Gravity.END);
-        qp.rightMargin = dp(70);
-        header.addView(quickPlus, qp);
-
         bigRow = new LinearLayout(this);
         bigRow.setGravity(Gravity.BOTTOM);
         bigNumber = text("0", 64, Color.WHITE, false);
@@ -329,6 +348,7 @@ public class MainActivity extends Activity {
         chipRow.addView(weekTotal);
         weekCard.addView(chipRow);
         weekBars = new WeekChart(this, false);
+        weekBars.onDay = this::openDay;
         weekCard.addView(weekBars, new LinearLayout.LayoutParams(-1, dp(170)));
         LinearLayout.LayoutParams wcp = new LinearLayout.LayoutParams(-1, -2);
         wcp.topMargin = dp(28);
@@ -337,10 +357,23 @@ public class MainActivity extends Activity {
         weekDelta = text("", 12, GRAY, false);
         LinearLayout trendCard = card("Trend", weekDelta);
         weekLine = new WeekChart(this, true);
+        weekLine.onDay = this::openDay;
         trendCard.addView(weekLine, new LinearLayout.LayoutParams(-1, dp(150)));
         LinearLayout.LayoutParams tcp = new LinearLayout.LayoutParams(-1, -2);
         tcp.topMargin = dp(16);
         page.addView(trendCard, tcp);
+
+        // Every day, week, month and year, with the time of each glass.
+        LinearLayout historyRow = new LinearLayout(this);
+        historyRow.setGravity(Gravity.CENTER_VERTICAL);
+        historyRow.setPadding(dp(18), dp(16), dp(18), dp(16));
+        historyRow.setBackground(round(0xFF1B1B1D, 20));
+        historyRow.addView(text("History", 14, Color.WHITE, true), new LinearLayout.LayoutParams(0, -2, 1f));
+        historyRow.addView(text("Day, week, month, year  ›", 12, GRAY, false));
+        historyRow.setOnClickListener(v -> startActivity(new Intent(this, HistoryActivity.class)));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
+        hp.topMargin = dp(16);
+        page.addView(historyRow, hp);
 
         TextView logTitle = text("Today", 13, GRAY, false);
         logTitle.setPadding(0, dp(28), 0, dp(6));
@@ -407,10 +440,6 @@ public class MainActivity extends Activity {
         sub.setAlpha(fade);
         bar.setTranslationY(h - dp(14) + p * dp(10));
         headerLine.setAlpha(p > 0.95f ? 1f : 0f);
-        float quick = Math.max(0f, Math.min(1f, (p - 0.5f) * 2f));
-        quickPlus.setAlpha(quick);
-        quickPlus.setEnabled(quick > 0.5f);
-        quickPlus.setTranslationY(t + dp(12));
         gear.setTranslationY(t + dp(12));
 
         if (android.os.Build.VERSION.SDK_INT >= 30) {

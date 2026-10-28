@@ -27,7 +27,56 @@ final class Store {
     private static SharedPreferences p(Context c) {
         SharedPreferences s = c.getSharedPreferences("water", Context.MODE_PRIVATE);
         if (!s.getBoolean("inGlasses", false)) migrateToGlasses(s);
+        if (!s.getBoolean("logPerDay", false)) migrateLogPerDay(s);
         return s;
+    }
+
+    /**
+     * The time log used to hold only today's changes. Every day now keeps its own log ("lg_yyyyMMdd"), so move
+     * today's existing log over once. Earlier days only ever saved a total, so they have no times.
+     */
+    private static void migrateLogPerDay(SharedPreferences s) {
+        SharedPreferences.Editor e = s.edit();
+        String old = s.getString("logg", "");
+        String day = s.getString("day", "");
+        if (!old.isEmpty() && day.length() == 8) e.putString("lg_" + day, old);
+        e.remove("logg");
+        // A "-1" used to be logged as its own line. It now removes the glass it undid, so fold any old ones in.
+        for (Map.Entry<String, ?> en : s.getAll().entrySet()) {
+            if (en.getKey().startsWith("lg_") && en.getValue() instanceof String) {
+                e.putString(en.getKey(), foldUndone((String) en.getValue()));
+            }
+        }
+        if (!old.isEmpty() && day.length() == 8) e.putString("lg_" + day, foldUndone(old));
+        e.putBoolean("logPerDay", true).apply();
+    }
+
+    /** Removes each negative entry together with the latest earlier addition it cancels. */
+    private static String foldUndone(String log) {
+        List<String> kept = new ArrayList<>();
+        for (String entry : log.split(";")) {
+            String[] parts = entry.split(":");
+            if (parts.length != 2) continue;
+            if (Long.parseLong(parts[1]) < 0) {
+                for (int i = kept.size() - 1; i >= 0; i--) {
+                    if (Long.parseLong(kept.get(i).split(":")[1]) > 0) { kept.remove(i); break; }
+                }
+            } else {
+                kept.add(entry);
+            }
+        }
+        return String.join(";", kept);
+    }
+
+    /** Removes the most recent addition from a day's log, for a -1. Returns the log unchanged if there is none. */
+    private static String dropLastAddition(String log) {
+        List<String> kept = new ArrayList<>();
+        if (!log.isEmpty()) kept.addAll(java.util.Arrays.asList(log.split(";")));
+        for (int i = kept.size() - 1; i >= 0; i--) {
+            String[] parts = kept.get(i).split(":");
+            if (parts.length == 2 && Long.parseLong(parts[1]) > 0) { kept.remove(i); break; }
+        }
+        return String.join(";", kept);
     }
 
     /**
@@ -120,19 +169,24 @@ final class Store {
     }
 
     /**
-     * Adds (positive) or removes (negative) glasses for today. The total stays between 0 and a sane maximum,
-     * and the log records the change that was actually applied.
+     * Adds (positive) or removes (negative) glasses for today. The total stays between 0 and a sane maximum.
+     * Each added glass is logged with its time; removing one deletes the most recent logged glass.
      */
     static void addGlasses(Context c, int delta) {
         SharedPreferences s = p(c);
         boolean sameDay = today().equals(s.getString("day", ""));
-        String log = sameDay ? s.getString("logg", "") : "";
+        String log = s.getString("lg_" + today(), "");
         int before = sameDay ? s.getInt("glasses", 0) : 0;
         int total = Math.max(0, Math.min(MAX_GLASSES, before + delta));
         int applied = total - before;
         if (applied == 0) return;
-        log += (log.isEmpty() ? "" : ";") + System.currentTimeMillis() + ":" + applied;
-        s.edit().putString("day", today()).putInt("glasses", total).putString("logg", log)
+        if (applied > 0) {
+            log += (log.isEmpty() ? "" : ";") + System.currentTimeMillis() + ":" + applied;
+        } else {
+            // Taking a glass off removes the entry it undoes instead of adding a "-1" line.
+            for (int i = 0; i < -applied; i++) log = dropLastAddition(log);
+        }
+        s.edit().putString("day", today()).putInt("glasses", total).putString("lg_" + today(), log)
                 .putInt(dayKey(new Date()), total).apply();
         WearSync.push(c);
     }
@@ -156,7 +210,7 @@ final class Store {
     }
 
     static void resetToday(Context c) {
-        p(c).edit().putString("day", today()).putInt("glasses", 0).putString("logg", "")
+        p(c).edit().putString("day", today()).putInt("glasses", 0).remove("lg_" + today())
                 .putInt(dayKey(new Date()), 0).apply();
         WearSync.push(c);
     }
@@ -221,9 +275,16 @@ final class Store {
 
     /** Today's changes, oldest first: each entry is {epochMs, glasses}, positive when added. */
     static List<long[]> todayLog(Context c) {
-        SharedPreferences s = p(c);
+        return dayLog(c, new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()));
+    }
+
+    /**
+     * The changes made on one day (ISO date yyyy-MM-dd), oldest first, each {epochMs, glasses}. Empty for days
+     * before the log was kept per day, which only saved a total.
+     */
+    static List<long[]> dayLog(Context c, String isoDate) {
         List<long[]> out = new ArrayList<>();
-        String log = today().equals(s.getString("day", "")) ? s.getString("logg", "") : "";
+        String log = p(c).getString("lg_" + isoDate.replace("-", ""), "");
         if (log.isEmpty()) return out;
         for (String e : log.split(";")) {
             String[] parts = e.split(":");

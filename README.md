@@ -226,7 +226,8 @@ Everything is counted in **glasses**. **3 glasses = 1 litre**, so one glass is 1
 
 - Tap **+ 1 glass** after you drink, or **− 1 glass** to fix a mistake.
 - The big number is today's glasses, with the litres and your goal underneath.
-- The cards show your week as bars and a trend line, with your average and best day.
+- The cards show your week as bars and a trend line, with your average and best day. Tap a bar to open that day.
+- **History** (below the trend card) has **Day, Week, Month and Year** views. A day lists every glass with its time; a week or month lists its days and a year its months. Tap a bar or a row to drill in. **− 1 glass** removes the last logged glass instead of adding a "−1" line, so the log always matches the total. Times are kept from the day you installed this version; earlier days only have their totals.
 - **Settings** has the reminder interval, sound, **Watch style**, daily goal (in glasses), **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
 - **Export data** (Excel, JSON or CSV) lists glasses and litres per day, today's log, and your settings.
 
