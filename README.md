@@ -1,4 +1,4 @@
-﻿# Water Island
+# Water Island
 
 A water-reminder app for Android phones and Galaxy Watches.
 
@@ -224,17 +224,20 @@ The watch app targets Wear OS 3 and newer, so it is built to work on both. Only 
 **Phone**
 Everything is counted in **glasses**. **3 glasses = 1 litre**, so one glass is 1/3 litre. There are no millilitre amounts.
 
-- Tap **+ 1 glass** after you drink, or **âˆ’ 1 glass** to fix a mistake.
+- Tap **+ 1 glass** after you drink, or **− 1 glass** to fix a mistake.
 - The big number is today's glasses, with the litres and your goal underneath.
 - The cards show your week as bars and a trend line, with your average and best day.
 - **Settings** has the reminder interval, sound, **Watch style**, daily goal (in glasses), **Remind on watch**, **Reminder style**, **Export data** and **Reset today**.
 - **Export data** (Excel, JSON or CSV) lists glasses and litres per day, today's log, and your settings.
 
 **Watch**
-- **Today:** rising water that fills toward your goal. Tap the water to add 1 glass.
+- **Today:** your glasses against the goal, drawn in the style you picked (12 to choose from, see below). Tap the screen to add 1 glass.
 - **This week:** the bars for the week.
-- **Change today:** **+ 1 glass** and **âˆ’ 1 glass** buttons. When a reminder arrives the watch buzzes and shows a card with **+1 glass**.
-- **Tile:** **âˆ’1** and **+1** buttons.
+- **Change today:** **+ 1 glass** and **− 1 glass** buttons. When a reminder arrives the watch buzzes and shows a card with **+1 glass**.
+- **Style:** a list of the 12 looks for the Today page. Tap one to apply it.
+- **Tile:** **−1** and **+1** buttons.
+
+**Watch styles.** Triple arcs, Cookie fill, Wavy ring, Squircle liquid, Gauge and pills, Bloom (all in a Google Pixel Watch look), then Rising water (the default), Ring and drop, Big glass, Aquarium, Growing plant and Orbit. Pick one on the watch (**Style** page) or on the phone (**Settings > Watch > Watch style**). The newest choice is kept on both. In **Gauge and pills**, tap the **−** pill to remove a glass.
 
 ## How the phone and watch stay in sync
 
