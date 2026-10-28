@@ -55,7 +55,8 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     private HorizontalScrollView pager;
     private int pageW;
     private TodayView todayView;
-    private TextView[] styleRows;
+    private TodayView stylePreview;
+    private TextView styleName;
     private float tapX;
     private float tapY;
     private WeekView weekView;
@@ -266,50 +267,53 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         return page;
     }
 
-    /** Fourth page: a list of the Today looks. Picking one applies it here and on the phone. */
+    /** Fourth page: the current style playing live, and a button that opens the gallery. */
     private View buildStylePage() {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(0, (int) dp(52), 0, (int) dp(64));
-        TextView title = new TextView(this);
-        title.setText("Style");
-        title.setTextColor(GRAY);
-        title.setTextSize(15);
-        title.setGravity(Gravity.CENTER);
-        col.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        styleRows = new TextView[TodayView.NAMES.length];
-        for (int i = 0; i < styleRows.length; i++) {
-            final int which = i;
-            TextView row = new TextView(this);
-            row.setTextSize(15);
-            row.setGravity(Gravity.CENTER);
-            row.setOnClickListener(v -> {
-                WatchData.setStyle(this, which);
-                v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
-                refresh();
-            });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) dp(150), (int) dp(40));
-            lp.topMargin = (int) dp(6);
-            col.addView(row, lp);
-            styleRows[i] = row;
-        }
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        sv.addView(col, new FrameLayout.LayoutParams(-1, -2));
-        return sv;
+        col.setGravity(Gravity.CENTER);
+
+        stylePreview = new TodayView(this);
+        GradientDrawable disc = new GradientDrawable();
+        disc.setShape(GradientDrawable.OVAL);
+        disc.setColor(Color.BLACK);
+        disc.setStroke((int) dp(2), 0x33FFFFFF);
+        stylePreview.setBackground(disc);
+        stylePreview.setClipToOutline(true);
+        stylePreview.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+        });
+        col.addView(stylePreview, new LinearLayout.LayoutParams((int) dp(112), (int) dp(112)));
+
+        styleName = new TextView(this);
+        styleName.setTextColor(Color.WHITE);
+        styleName.setTextSize(14);
+        styleName.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2);
+        np.topMargin = (int) dp(6);
+        col.addView(styleName, np);
+
+        TextView open = new TextView(this);
+        open.setText("Change style");
+        open.setTextSize(14);
+        open.setTypeface(Typeface.DEFAULT_BOLD);
+        open.setGravity(Gravity.CENTER);
+        open.setTextColor(Color.BLACK);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.WHITE);
+        bg.setCornerRadius(dp(20));
+        open.setBackground(bg);
+        open.setOnClickListener(v -> startActivity(new android.content.Intent(this, StyleGalleryActivity.class)));
+        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams((int) dp(130), (int) dp(38));
+        op.topMargin = (int) dp(8);
+        col.addView(open, op);
+        return col;
     }
 
     private void showStyle(int selected) {
-        for (int i = 0; i < styleRows.length; i++) {
-            boolean on = i == selected;
-            styleRows[i].setText(TodayView.NAMES[i]);
-            styleRows[i].setTextColor(on ? Color.BLACK : Color.WHITE);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(on ? Color.WHITE : 0x1FFFFFFF);
-            bg.setCornerRadius(dp(20));
-            styleRows[i].setBackground(bg);
-        }
+        stylePreview.setStyle(selected);
+        styleName.setText(TodayView.NAMES[selected]);
     }
 
     private LinearLayout.LayoutParams buttonParams() {
@@ -361,6 +365,7 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         super.onResume();
         Wearable.getDataClient(this).addListener(this);
         todayView.startWave();
+        stylePreview.startDemo();
         refresh();
         fetchState();
     }
@@ -369,6 +374,7 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     protected void onPause() {
         Wearable.getDataClient(this).removeListener(this);
         todayView.stopWave();
+        stylePreview.stopDemo();
         super.onPause();
     }
 }

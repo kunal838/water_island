@@ -234,10 +234,10 @@ Everything is counted in **glasses**. **3 glasses = 1 litre**, so one glass is 1
 - **Today:** your glasses against the goal, drawn in the style you picked (12 to choose from, see below). Tap the screen to add 1 glass.
 - **This week:** the bars for the week.
 - **Change today:** **+ 1 glass** and **− 1 glass** buttons. When a reminder arrives the watch buzzes and shows a card with **+1 glass**.
-- **Style:** a list of the 12 looks for the Today page. Tap one to apply it.
+- **Style:** shows the current look playing live. **Change style** opens a gallery where each look animates; swipe sideways through them and tap **Use this**.
 - **Tile:** **−1** and **+1** buttons.
 
-**Watch styles.** Triple arcs, Cookie fill, Wavy ring, Squircle liquid, Gauge and pills, Bloom (all in a Google Pixel Watch look), then Rising water (the default), Ring and drop, Big glass, Aquarium, Growing plant and Orbit. Pick one on the watch (**Style** page) or on the phone (**Settings > Watch > Watch style**). The newest choice is kept on both. In **Gauge and pills**, tap the **−** pill to remove a glass.
+**Watch styles.** Triple arcs, Cookie fill, Wavy ring, Squircle liquid, Gauge and pills, Bloom (all in a Google Pixel Watch look), then Rising water (the default), Ring and drop, Big glass, Aquarium, Growing plant and Orbit. Pick one on the watch (**Style** page, then **Change style**) or on the phone (**Settings > Watch style**, a gallery where every card animates). The newest choice is kept on both. In **Gauge and pills**, tap the **−** pill to remove a glass.
 
 ## How the phone and watch stay in sync
 

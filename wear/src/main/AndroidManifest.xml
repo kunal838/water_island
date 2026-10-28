@@ -27,6 +27,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".StyleGalleryActivity"
+            android:exported="false" />
         <service
             android:name=".WatchSyncService"
             android:exported="true">

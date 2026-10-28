@@ -155,14 +155,7 @@ public class SettingsActivity extends Activity {
         });
 
         section("Watch");
-        watchStyleValue = row("Watch style", () -> new AlertDialog.Builder(this)
-                .setTitle("Watch style")
-                .setSingleChoiceItems(Store.WATCH_STYLES, Store.watchStyle(this), (d, which) -> {
-                    Store.setWatchStyle(this, which, System.currentTimeMillis());
-                    d.dismiss();
-                    refresh();
-                })
-                .show());
+        watchStyleValue = row("Watch style", () -> startActivity(new Intent(this, WatchStyleActivity.class)));
 
         section("Water");
         row("One glass", null).setText("1/3 litre");

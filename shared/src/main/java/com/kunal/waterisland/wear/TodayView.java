@@ -17,11 +17,13 @@ import android.view.animation.OvershootInterpolator;
  * glass count against the goal and plays its own animation when a glass is added. Styles other than
  * "Rising water" are drawn in a 200 x 200 space that is scaled to the round display.
  */
-final class TodayView extends View {
-    static final String[] NAMES = {
+public final class TodayView extends View {
+    public static final String[] NAMES = {
             "Triple arcs", "Cookie fill", "Wavy ring", "Squircle liquid", "Gauge and pills", "Bloom",
             "Rising water", "Ring and drop", "Big glass", "Aquarium", "Growing plant", "Orbit"};
-    static final int WATER = 6;
+    public static final int WATER = 6;
+    private static final int DEMO_GOAL = 8;
+    private static final long DEMO_STEP_MS = 800;
 
     private static final int BLUE = 0xFFA8C7FA;
     private static final int GREEN = 0xFFC4EED0;
@@ -77,8 +79,11 @@ final class TodayView extends View {
     private ValueAnimator levelAnim;
     private ValueAnimator splashAnim;
     private ValueAnimator pulseAnim;
+    private Runnable demoLoop;
+    private int demoGlasses;
+    private boolean demo;
 
-    TodayView(Context c) {
+    public TodayView(Context c) {
         super(c);
         d = c.getResources().getDisplayMetrics().density;
         front.setColor(WATER_BLUE);
@@ -127,13 +132,46 @@ final class TodayView extends View {
         glassShape.close();
     }
 
-    void setStyle(int style) {
+    public void setStyle(int style) {
         if (style < 0 || style >= NAMES.length || style == this.style) return;
         this.style = style;
         invalidate();
     }
 
-    void set(float pct, int glasses, int goal, float weekFrac, float streakFrac) {
+    /**
+     * Gallery preview: instead of real data, adds a glass every moment up to a small goal and starts over,
+     * so each style shows its fill animation on a loop. Call {@link #stopDemo} when the view goes away.
+     */
+    public void startDemo() {
+        stopDemo();
+        demoGlasses = 0;
+        demo = true;
+        demoLoop = new Runnable() {
+            @Override
+            public void run() {
+                demoGlasses = demoGlasses >= DEMO_GOAL ? 0 : demoGlasses + 1;
+                set((float) demoGlasses / DEMO_GOAL, demoGlasses, DEMO_GOAL, 0.6f, 0.5f);
+                if (demoGlasses > 0) flash("");
+                postDelayed(this, demoGlasses >= DEMO_GOAL ? 2 * DEMO_STEP_MS : DEMO_STEP_MS);
+            }
+        };
+        post(demoLoop);
+        startWave();
+    }
+
+    public void stopDemo() {
+        if (demoLoop != null) removeCallbacks(demoLoop);
+        demoLoop = null;
+        stopWave();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        stopDemo();
+        super.onDetachedFromWindow();
+    }
+
+    public void set(float pct, int glasses, int goal, float weekFrac, float streakFrac) {
         boolean added = glasses > this.glasses;
         this.glasses = glasses;
         this.goal = goal;
@@ -158,7 +196,7 @@ final class TodayView extends View {
         }
     }
 
-    void startWave() {
+    public void startWave() {
         if (waveAnim == null) {
             waveAnim = ValueAnimator.ofFloat(0f, (float) (2 * Math.PI));
             waveAnim.setDuration(2800);
@@ -172,13 +210,13 @@ final class TodayView extends View {
         if (!waveAnim.isRunning()) waveAnim.start();
     }
 
-    void stopWave() {
+    public void stopWave() {
         if (waveAnim != null) waveAnim.cancel();
         lastFrame = 0;
     }
 
     /** +1 normally; -1 when the "Gauge and pills" style is showing and the minus pill is tapped. */
-    int tapDelta(float x, float y) {
+    public int tapDelta(float x, float y) {
         if (style != 4) return 1;
         float u = Math.min(getWidth(), getHeight()) / 200f;
         float gx = (x - (getWidth() - 200 * u) / 2f) / u, gy = (y - (getHeight() - 200 * u) / 2f) / u;
@@ -186,7 +224,7 @@ final class TodayView extends View {
     }
 
     /** Shows a short message in place of the hint and plays the splash (water style). */
-    void flash(String message) {
+    public void flash(String message) {
         hint = message;
         if (splashAnim != null) splashAnim.cancel();
         splashAnim = ValueAnimator.ofFloat(0f, 1f);
@@ -596,6 +634,6 @@ final class TodayView extends View {
         text.setTextSize(14 * d);
         c.drawText("of " + goal + " glasses", w / 2f, h / 2f + 42 * d, text);
         text.setTextSize(12 * d);
-        c.drawText(hint, w / 2f, h * 0.88f, text);
+        if (!demo) c.drawText(hint, w / 2f, h * 0.88f, text);
     }
 }
