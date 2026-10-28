@@ -107,7 +107,6 @@ public final class TodayView extends View {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
         buildShapes();
-        setClickable(true);
     }
 
     /** Shapes that never change, built once in the 200 x 200 space. */

@@ -8,7 +8,10 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -25,6 +28,9 @@ public class StyleGalleryActivity extends Activity {
     private int current;
     private float downX;
     private boolean animating;
+    private boolean dragging;
+    private VelocityTracker velocity;
+    private final RotaryStepper rotary = new RotaryStepper();
 
     private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
 
@@ -72,24 +78,67 @@ public class StyleGalleryActivity extends Activity {
         root.addView(use, up);
 
         // Swiping sideways flips between styles; the buttons keep handling their own taps.
-        root.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN) downX = e.getX();
-            if (e.getAction() == MotionEvent.ACTION_UP) {
-                float dx = e.getX() - downX;
-                if (Math.abs(dx) > dp(48)) flip(dx < 0 ? 1 : -1);
-            }
-            return true;
-        });
-        preview.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_DOWN) downX = e.getX();
-            if (e.getAction() == MotionEvent.ACTION_UP) {
-                float dx = e.getX() - downX;
-                if (Math.abs(dx) > dp(48)) flip(dx < 0 ? 1 : -1);
-            }
-            return true;
-        });
+        root.setOnTouchListener((v, e) -> onDrag(e));
+        preview.setOnTouchListener((v, e) -> onDrag(e));
         setContentView(root);
         show();
+    }
+
+    /** The preview follows the finger; on release it flips if the drag was far or fast enough, else springs back. */
+    private boolean onDrag(MotionEvent e) {
+        float w = preview.getWidth();
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = e.getRawX();
+                dragging = false;
+                if (velocity != null) velocity.recycle();
+                velocity = VelocityTracker.obtain();
+                velocity.addMovement(e);
+                return true;
+            case MotionEvent.ACTION_MOVE: {
+                if (velocity == null || animating) return true;
+                velocity.addMovement(e);
+                float dx = e.getRawX() - downX;
+                if (Math.abs(dx) > ViewConfiguration.get(this).getScaledTouchSlop()) dragging = true;
+                if (dragging) {
+                    preview.setTranslationX(dx * 0.5f);
+                    preview.setAlpha(1f - Math.min(1f, Math.abs(dx) / (w * 1.2f)) * 0.8f);
+                }
+                return true;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                if (velocity == null) return true;
+                velocity.addMovement(e);
+                velocity.computeCurrentVelocity(1000);
+                float vx = velocity.getXVelocity();
+                velocity.recycle();
+                velocity = null;
+                float dx = e.getRawX() - downX;
+                if (!dragging || animating) return true;
+                dragging = false;
+                if (e.getActionMasked() == MotionEvent.ACTION_UP && (Math.abs(dx) > dp(56) || Math.abs(vx) > dp(300))) {
+                    flip(dx < 0 || vx < -dp(300) ? 1 : -1);
+                } else {
+                    preview.animate().translationX(0f).alpha(1f).setDuration(180)
+                            .setInterpolator(new PathInterpolator(0.2f, 0f, 0f, 1f)).start();
+                }
+                return true;
+            }
+            default:
+                return true;
+        }
+    }
+
+    /** The dial flips one style per click, with a tick. */
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent e) {
+        int step = rotary.onEvent(this, e);
+        if (step != 0) {
+            preview.performHapticFeedback(RotaryStepper.tick());
+            flip(step);
+        }
+        return e.getAction() == MotionEvent.ACTION_SCROLL || super.onGenericMotionEvent(e);
     }
 
     private TextView pill(int sp, boolean solid) {
@@ -111,18 +160,20 @@ public class StyleGalleryActivity extends Activity {
         use.setText(index == current ? "In use ✓" : "Use this");
     }
 
-    /** Slides the preview out and the next style in from the other side. */
+    /** Slides the preview out from wherever it is and the next style in from the other side. */
     private void flip(int step) {
         if (animating) return;
         animating = true;
         float w = preview.getWidth();
-        preview.animate().translationX(-step * w * 0.4f).alpha(0f).setDuration(140).withEndAction(() -> {
+        PathInterpolator ease = new PathInterpolator(0.2f, 0f, 0f, 1f);
+        preview.animate().translationX(-step * w * 0.45f).alpha(0f).setDuration(120).withEndAction(() -> {
             index = (index + step + TodayView.NAMES.length) % TodayView.NAMES.length;
             preview.setStyle(index);
             show();
-            preview.setTranslationX(step * w * 0.4f);
-            preview.animate().translationX(0f).alpha(1f).setDuration(180).withEndAction(() -> animating = false).start();
-        }).start();
+            preview.setTranslationX(step * w * 0.45f);
+            preview.animate().translationX(0f).alpha(1f).setDuration(220).setInterpolator(ease)
+                    .withEndAction(() -> animating = false).start();
+        }).setInterpolator(new android.view.animation.AccelerateInterpolator()).start();
     }
 
     @Override

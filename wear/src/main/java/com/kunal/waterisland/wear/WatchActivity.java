@@ -52,8 +52,7 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
     private static final long PENDING_MAX_AGE_MS = 2L * 24 * 60 * 60 * 1000;
 
     private SharedPreferences prefs;
-    private HorizontalScrollView pager;
-    private int pageW;
+    private PagerView pager;
     private TodayView todayView;
     private TodayView stylePreview;
     private TextView styleName;
@@ -199,14 +198,10 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
-        DisplayMetrics dm = getResources().getDisplayMetrics();
-        pageW = dm.widthPixels;
-        int pageH = dm.heightPixels;
-
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 
-        LinearLayout strip = new LinearLayout(this);
+        pager = new PagerView(this);
         todayView = new TodayView(this);
         // Tapping the water adds one glass.
         todayView.setOnTouchListener((v, e) -> {
@@ -222,22 +217,11 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
             refresh();
         });
         weekView = new WeekView(this);
-        strip.addView(todayView, new LinearLayout.LayoutParams(pageW, pageH));
-        strip.addView(weekView, new LinearLayout.LayoutParams(pageW, pageH));
-        strip.addView(buildAddPage(), new LinearLayout.LayoutParams(pageW, pageH));
-        strip.addView(buildStylePage(), new LinearLayout.LayoutParams(pageW, pageH));
-
-        pager = new HorizontalScrollView(this);
-        pager.setHorizontalScrollBarEnabled(false);
-        pager.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        pager.addView(strip);
-        pager.setOnScrollChangeListener((v, x, y, ox, oy) -> dots.setIndex(Math.round(x / (float) pageW)));
-        pager.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_CANCEL) {
-                pager.post(() -> pager.smoothScrollTo(Math.round(pager.getScrollX() / (float) pageW) * pageW, 0));
-            }
-            return false;
-        });
+        pager.addPage(todayView);
+        pager.addPage(weekView);
+        pager.addPage(buildAddPage());
+        pager.addPage(buildStylePage());
+        pager.setListener(position -> dots.setIndex(Math.round(position)));
         root.addView(pager, new FrameLayout.LayoutParams(-1, -1));
 
         dots = new DotsView(this);
@@ -366,8 +350,15 @@ public class WatchActivity extends Activity implements DataClient.OnDataChangedL
         Wearable.getDataClient(this).addListener(this);
         todayView.startWave();
         stylePreview.startDemo();
+        pager.requestFocus();
         refresh();
         fetchState();
+    }
+
+    /** The dial moves between pages even when no view holds focus. */
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent e) {
+        return pager.handleRotary(e) || super.onGenericMotionEvent(e);
     }
 
     @Override
